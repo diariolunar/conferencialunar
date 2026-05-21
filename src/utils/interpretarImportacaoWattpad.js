@@ -26,15 +26,8 @@ export function interpretarImportacaoWattpad(texto = "") {
       return;
     }
 
-    if (
-      linhaLower.startsWith("user do autor:") ||
-      linhaLower.startsWith("user da autora:") ||
-      linhaLower.startsWith("user autor:") ||
-      linhaLower.startsWith("user autora:")
-    ) {
-      userAutor = limparValor(
-        linha.replace(/^user\s+(do|da)?\s*autor(a)?\s*:/i, "")
-      ).replace(/^@/, "");
+    if (linhaLower.includes("user") && linhaLower.includes("autor")) {
+      userAutor = limparValor(linha.split(":").slice(1).join(":")).replace(/^@/, "");
       return;
     }
 
@@ -110,26 +103,18 @@ function limparValor(valor = "") {
 export function limparTituloCapitulo(titulo = "") {
   let limpo = limparValor(titulo);
 
-  limpo = limpo.replace(/\s+/g, " ");
-
   limpo = limpo.replace(
-    /\s+(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo),?\s+(jan|janeiro|fev|fevereiro|mar|março|marco|abr|abril|mai|maio|jun|junho|jul|julho|ago|agosto|set|setembro|out|outubro|nov|novembro|dez|dezembro)\s+\d{1,2},?\s+\d{4}.*$/i,
+    /\s+(seg|segunda|ter|terça|terca|qua|quarta|qui|quinta|sex|sexta|sáb|sab|sábado|sabado|dom|domingo),?\s+(jan|janeiro|fev|fevereiro|mar|março|marco|abr|abril|mai|maio|jun|junho|jul|julho|ago|agosto|set|setembro|out|outubro|nov|novembro|dez|dezembro)\s+\d{1,2},?\s+\d{4}.*$/i,
     ""
   );
 
   limpo = limpo.replace(
-    /\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday),?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2},?\s+\d{4}.*$/i,
-    ""
-  );
-
-  limpo = limpo.replace(
-    /\s+\d{1,2}\s+de\s+(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+\d{4}.*$/i,
+    /\s+(mon|monday|tue|tuesday|wed|wednesday|thu|thursday|fri|friday|sat|saturday|sun|sunday),?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2},?\s+\d{4}.*$/i,
     ""
   );
 
   limpo = limpo.replace(/\s+\d{1,2}\/\d{1,2}\/\d{2,4}.*$/i, "");
   limpo = limpo.replace(/\s+\d{4}-\d{2}-\d{2}.*$/i, "");
-
   limpo = limpo.replace(/\s+(publicado|atualizado|updated|published).*$/i, "");
 
   return limparValor(limpo);
