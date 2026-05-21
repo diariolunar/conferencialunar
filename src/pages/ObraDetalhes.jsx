@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { buscarObraPorId } from "../services/obrasService.js";
+import {
+  atualizarObra,
+  buscarObraPorId
+} from "../services/obrasService.js";
 
 import {
   excluirCapitulo,
@@ -17,6 +20,12 @@ export default function ObraDetalhes() {
   const [obra, setObra] = useState(null);
   const [capitulos, setCapitulos] = useState([]);
 
+  const [tituloObra, setTituloObra] = useState("");
+  const [autor, setAutor] = useState("");
+  const [userAutor, setUserAutor] = useState("");
+  const [capa, setCapa] = useState("");
+  const [linkObra, setLinkObra] = useState("");
+
   const [titulo, setTitulo] = useState("");
   const [link, setLink] = useState("");
   const [palavras, setPalavras] = useState("");
@@ -25,7 +34,8 @@ export default function ObraDetalhes() {
   const [tipo, setTipo] = useState("Normal");
 
   const [carregando, setCarregando] = useState(true);
-  const [salvando, setSalvando] = useState(false);
+  const [salvandoObra, setSalvandoObra] = useState(false);
+  const [salvandoCapitulo, setSalvandoCapitulo] = useState(false);
   const [mensagem, setMensagem] = useState("");
 
   async function carregarDados() {
@@ -46,11 +56,47 @@ export default function ObraDetalhes() {
 
       setObra(obraEncontrada);
       setCapitulos(capitulosEncontrados);
+
+      setTituloObra(obraEncontrada.titulo || "");
+      setAutor(obraEncontrada.autor || "");
+      setUserAutor(obraEncontrada.userAutor || "");
+      setCapa(obraEncontrada.capa || "");
+      setLinkObra(obraEncontrada.link || "");
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao carregar detalhes da obra.");
     } finally {
       setCarregando(false);
+    }
+  }
+
+  async function handleSalvarObra(evento) {
+    evento.preventDefault();
+
+    if (!tituloObra.trim()) {
+      setMensagem("Informe o título da obra.");
+      return;
+    }
+
+    setSalvandoObra(true);
+    setMensagem("");
+
+    try {
+      await atualizarObra(obraId, {
+        titulo: tituloObra.trim(),
+        autor: autor.trim(),
+        userAutor: userAutor.replace(/^@/, "").trim(),
+        capa: capa.trim(),
+        link: linkObra.trim()
+      });
+
+      setMensagem("Dados da obra atualizados com sucesso.");
+      await carregarDados();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao atualizar obra.");
+    } finally {
+      setSalvandoObra(false);
     }
   }
 
@@ -62,7 +108,7 @@ export default function ObraDetalhes() {
       return;
     }
 
-    setSalvando(true);
+    setSalvandoCapitulo(true);
     setMensagem("");
 
     try {
@@ -88,7 +134,7 @@ export default function ObraDetalhes() {
       console.error(erro);
       setMensagem("Erro ao salvar capítulo.");
     } finally {
-      setSalvando(false);
+      setSalvandoCapitulo(false);
     }
   }
 
@@ -143,7 +189,7 @@ export default function ObraDetalhes() {
       <div className="page-title page-title-row">
         <div>
           <h2>{obra.titulo}</h2>
-          <p>Capítulos cadastrados para reconhecimento na conferência.</p>
+          <p>Edite dados da obra e revise os capítulos cadastrados.</p>
         </div>
 
         <Link to="/obras" className="button-secondary">
@@ -163,6 +209,11 @@ export default function ObraDetalhes() {
         <div>
           <h3>{obra.titulo}</h3>
 
+          <p>
+            {obra.autor || "Autor não informado"}
+            {obra.userAutor ? ` • @${obra.userAutor}` : ""}
+          </p>
+
           {obra.link ? (
             <a href={obra.link} target="_blank" rel="noreferrer">
               Abrir obra no Wattpad
@@ -170,8 +221,6 @@ export default function ObraDetalhes() {
           ) : (
             <p>Obra sem link cadastrado.</p>
           )}
-
-          {obra.descricao && <p>{obra.descricao}</p>}
 
           <p>
             Wattpad ID: <strong>{obra.wattpadId || "-"}</strong>
@@ -184,6 +233,68 @@ export default function ObraDetalhes() {
       </div>
 
       <div className="card">
+        <h3>Editar dados da obra</h3>
+
+        <form className="form-grid" onSubmit={handleSalvarObra}>
+          <label>
+            Título da obra
+            <input
+              type="text"
+              value={tituloObra}
+              onChange={(evento) => setTituloObra(evento.target.value)}
+              placeholder="Título da obra"
+            />
+          </label>
+
+          <div className="form-row-2">
+            <label>
+              Nome do autor
+              <input
+                type="text"
+                value={autor}
+                onChange={(evento) => setAutor(evento.target.value)}
+                placeholder="Nome do autor"
+              />
+            </label>
+
+            <label>
+              User do autor no Wattpad
+              <input
+                type="text"
+                value={userAutor}
+                onChange={(evento) => setUserAutor(evento.target.value)}
+                placeholder="@user"
+              />
+            </label>
+          </div>
+
+          <label>
+            Link da capa
+            <input
+              type="url"
+              value={capa}
+              onChange={(evento) => setCapa(evento.target.value)}
+              placeholder="https://..."
+            />
+          </label>
+
+          <label>
+            Link da obra
+            <input
+              type="url"
+              value={linkObra}
+              onChange={(evento) => setLinkObra(evento.target.value)}
+              placeholder="https://www.wattpad.com/story/..."
+            />
+          </label>
+
+          <button type="submit" className="button-primary" disabled={salvandoObra}>
+            {salvandoObra ? "Salvando..." : "Salvar dados da obra"}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
         <h3>Cadastrar capítulo manualmente</h3>
 
         <form className="form-grid" onSubmit={handleSalvarCapitulo}>
@@ -193,7 +304,7 @@ export default function ObraDetalhes() {
               type="text"
               value={titulo}
               onChange={(evento) => setTitulo(evento.target.value)}
-              placeholder="Ex: A do meio"
+              placeholder="Ex: Especial - As Grandes Casas de Aurealis"
             />
           </label>
 
@@ -256,8 +367,12 @@ export default function ObraDetalhes() {
             </select>
           </label>
 
-          <button type="submit" className="button-primary" disabled={salvando}>
-            {salvando ? "Salvando..." : "Salvar capítulo"}
+          <button
+            type="submit"
+            className="button-primary"
+            disabled={salvandoCapitulo}
+          >
+            {salvandoCapitulo ? "Salvando..." : "Salvar capítulo"}
           </button>
         </form>
       </div>
