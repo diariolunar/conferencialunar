@@ -1,5 +1,52 @@
 import { normalizarTexto } from "./normalizarTexto.js";
 
+const CAMPOS_SUB = [
+  "sub",
+  "sub de leitura",
+  "sala",
+  "grupo"
+];
+
+const CAMPOS_NOME = [
+  "nome",
+  "nome do leitor",
+  "leitor",
+  "membro",
+  "participante"
+];
+
+const CAMPOS_USER = [
+  "user",
+  "usuário",
+  "usuario",
+  "user do leitor",
+  "perfil",
+  "wattpad",
+  "user wattpad",
+  "arroba"
+];
+
+const CAMPOS_ADM = [
+  "adm",
+  "admin",
+  "administrador",
+  "administradora",
+  "responsável",
+  "responsavel"
+];
+
+const CAMPOS_OBRA = [
+  "obra",
+  "obra lida",
+  "livro",
+  "história",
+  "historia",
+  "título",
+  "titulo",
+  "nome da obra",
+  "nome do livro"
+];
+
 function limparValor(valor = "") {
   return String(valor || "")
     .replace(/^[\s:：\-–—|]+/, "")
@@ -7,7 +54,7 @@ function limparValor(valor = "") {
     .trim();
 }
 
-function removerEmojisBasicos(texto = "") {
+function removerEmojis(texto = "") {
   return String(texto || "")
     .replace(/[^\p{L}\p{N}\s@._:：\-–—|/.,;()[\]]/gu, " ")
     .replace(/\s+/g, " ")
@@ -21,42 +68,41 @@ function dividirLinhas(texto = "") {
     .filter(Boolean);
 }
 
-function linhaNormalizada(linha = "") {
-  return normalizarTexto(removerEmojisBasicos(linha));
+function normalizarLinha(linha = "") {
+  return normalizarTexto(removerEmojis(linha));
 }
 
-function capturarCampo(texto, nomesCampo = []) {
+function campoBate(linhaNormalizada, campo) {
+  const campoNormalizado = normalizarTexto(campo);
+
+  return (
+    linhaNormalizada.startsWith(`${campoNormalizado}:`) ||
+    linhaNormalizada.startsWith(`${campoNormalizado} -`) ||
+    linhaNormalizada.startsWith(`${campoNormalizado} –`) ||
+    linhaNormalizada.startsWith(`${campoNormalizado} —`) ||
+    linhaNormalizada.startsWith(`${campoNormalizado} |`)
+  );
+}
+
+function capturarCampo(texto, campos = []) {
   const linhas = dividirLinhas(texto);
 
   for (const linha of linhas) {
-    const linhaLimpa = removerEmojisBasicos(linha);
-    const normalizada = linhaNormalizada(linhaLimpa);
+    const linhaLimpa = removerEmojis(linha);
+    const linhaNormalizada = normalizarLinha(linhaLimpa);
 
-    for (const campo of nomesCampo) {
-      const campoNormalizado = normalizarTexto(campo);
+    for (const campo of campos) {
+      if (!campoBate(linhaNormalizada, campo)) {
+        continue;
+      }
 
-      if (
-        normalizada.startsWith(`${campoNormalizado}:`) ||
-        normalizada.startsWith(`${campoNormalizado} -`) ||
-        normalizada.startsWith(`${campoNormalizado} –`) ||
-        normalizada.startsWith(`${campoNormalizado} —`) ||
-        normalizada.startsWith(`${campoNormalizado} |`)
-      ) {
-        const regex = new RegExp(
-          `^\\s*${campo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[:：\\-–—|]\\s*(.+)$`,
-          "i"
-        );
+      const partes = linhaLimpa.split(/[:：\-–—|]/);
+      partes.shift();
 
-        const match = linhaLimpa.match(regex);
+      const valor = limparValor(partes.join(" "));
 
-        if (match?.[1]) {
-          return limparValor(match[1]);
-        }
-
-        const partes = linhaLimpa.split(/[:：\-–—|]/);
-        partes.shift();
-
-        return limparValor(partes.join(" "));
+      if (valor) {
+        return valor;
       }
     }
   }
@@ -65,16 +111,7 @@ function capturarCampo(texto, nomesCampo = []) {
 }
 
 function capturarUser(texto = "") {
-  const direto = capturarCampo(texto, [
-    "user",
-    "usuário",
-    "usuario",
-    "user do leitor",
-    "perfil",
-    "wattpad",
-    "user wattpad",
-    "arroba"
-  ]);
+  const direto = capturarCampo(texto, CAMPOS_USER);
 
   if (direto) {
     return direto.replace(/^@/, "").trim();
@@ -89,8 +126,8 @@ function capturarUser(texto = "") {
   return "";
 }
 
-function detectarSim(texto = "", nomesCampo = []) {
-  const valor = capturarCampo(texto, nomesCampo);
+function detectarSim(texto = "", campos = []) {
+  const valor = capturarCampo(texto, campos);
   const normalizado = normalizarTexto(valor);
 
   return [
@@ -99,36 +136,113 @@ function detectarSim(texto = "", nomesCampo = []) {
     "yes",
     "oferecido",
     "ofereci",
-    "aceito"
+    "aceito",
+    "aceita"
   ].some((palavra) => normalizado === palavra || normalizado.includes(palavra));
+}
+
+function pareceNovoCampo(linha = "") {
+  const normalizada = normalizarLinha(linha);
+
+  const campos = [
+    ...CAMPOS_SUB,
+    ...CAMPOS_NOME,
+    ...CAMPOS_USER,
+    ...CAMPOS_ADM,
+    ...CAMPOS_OBRA,
+    "feedback",
+    "feedback oferecido",
+    "minha obra",
+    "é minha obra",
+    "eh minha obra",
+    "obra própria",
+    "obra propria"
+  ];
+
+  return campos.some((campo) => {
+    const campoNormalizado = normalizarTexto(campo);
+
+    return (
+      normalizada.startsWith(`${campoNormalizado}:`) ||
+      normalizada.startsWith(`${campoNormalizado} -`) ||
+      normalizada.startsWith(`${campoNormalizado} –`) ||
+      normalizada.startsWith(`${campoNormalizado} —`) ||
+      normalizada.startsWith(`${campoNormalizado} |`)
+    );
+  });
 }
 
 function separarItens(texto = "") {
   return String(texto || "")
     .split(/,|;|\||\/| e |\n/gi)
-    .map((item) => limparValor(item))
+    .map((item) => limparCapituloInformado(item))
     .filter(Boolean);
+}
+
+function limparCapituloInformado(texto = "") {
+  return String(texto || "")
+    .replace(/^[\s\-–—*•]+/, "")
+    .replace(/^\d+[\).\-–—]\s*/, "")
+    .replace(/^cap[íi]tulo\s*/i, "")
+    .replace(/^cap\s*/i, "")
+    .replace(/^parte\s*/i, "")
+    .replace(/^epis[óo]dio\s*/i, "")
+    .trim();
 }
 
 function extrairCapitulosDeLinha(linha = "") {
   const partes = linha.split(/[:：\-–—|]/);
 
-  if (partes.length > 1) {
-    partes.shift();
-    return separarItens(partes.join(" "));
+  if (partes.length <= 1) {
+    return [];
   }
 
-  return [];
+  partes.shift();
+
+  return separarItens(partes.join(" "));
+}
+
+function expandirFaixas(texto = "") {
+  const capitulos = [];
+
+  const matchesFaixa = texto.matchAll(
+    /cap[íi]tulos?\s*(?:lidos?)?\s*[:：\-–—]?\s*(\d+)\s*(?:a|até|-|–|—)\s*(\d+)/gi
+  );
+
+  for (const match of matchesFaixa) {
+    const inicio = Number(match[1]);
+    const fim = Number(match[2]);
+
+    if (inicio > 0 && fim >= inicio && fim - inicio <= 100) {
+      for (let numero = inicio; numero <= fim; numero += 1) {
+        capitulos.push(String(numero));
+      }
+    }
+  }
+
+  return capitulos;
+}
+
+function extrairCapitulosNumericos(texto = "") {
+  const capitulos = [];
+
+  const matchesCapituloNumero = texto.matchAll(
+    /(?:cap[íi]tulo|cap|parte|epis[óo]dio)\s*(\d+)/gi
+  );
+
+  for (const match of matchesCapituloNumero) {
+    capitulos.push(String(match[1]));
+  }
+
+  return capitulos;
 }
 
 function extrairCapitulos(texto = "") {
   const linhas = dividirLinhas(texto);
   const capitulos = [];
 
-  const indicesPossiveis = [];
-
   linhas.forEach((linha, index) => {
-    const normalizada = linhaNormalizada(linha);
+    const normalizada = normalizarLinha(linha);
 
     const pareceCampoCapitulo =
       normalizada.includes("capitulo") ||
@@ -140,137 +254,54 @@ function extrairCapitulos(texto = "") {
       normalizada.includes("episodio") ||
       normalizada.includes("episódio");
 
-    if (pareceCampoCapitulo) {
-      indicesPossiveis.push(index);
-
-      const extraidos = extrairCapitulosDeLinha(linha);
-      capitulos.push(...extraidos);
+    if (!pareceCampoCapitulo) {
+      return;
     }
-  });
 
-  for (const index of indicesPossiveis) {
-    const proximasLinhas = linhas.slice(index + 1, index + 8);
+    capitulos.push(...extrairCapitulosDeLinha(linha));
 
-    for (const linha of proximasLinhas) {
-      const normalizada = linhaNormalizada(linha);
+    const proximasLinhas = linhas.slice(index + 1, index + 10);
 
-      const pareceNovoCampo =
-        normalizada.includes("feedback") ||
-        normalizada.includes("minha obra") ||
-        normalizada.startsWith("adm") ||
-        normalizada.startsWith("sub") ||
-        normalizada.startsWith("nome") ||
-        normalizada.startsWith("user") ||
-        normalizada.startsWith("obra") ||
-        normalizada.startsWith("livro") ||
-        normalizada.startsWith("historia") ||
-        normalizada.startsWith("história");
-
-      if (pareceNovoCampo) {
+    for (const proximaLinha of proximasLinhas) {
+      if (pareceNovoCampo(proximaLinha)) {
         break;
       }
 
-      const linhaSemMarcador = linha
-        .replace(/^[\s\-–—*•]+/, "")
-        .replace(/^\d+[\).\-–—]\s*/, "")
-        .trim();
+      const limpa = limparCapituloInformado(proximaLinha);
 
-      if (linhaSemMarcador.length >= 1) {
-        capitulos.push(linhaSemMarcador);
+      if (limpa) {
+        capitulos.push(limpa);
       }
     }
-  }
+  });
 
-  const capitulosNumericos = [];
-
-  const matchesFaixa = texto.matchAll(
-    /cap[ií]tulos?\s*(?:lidos?)?\s*[:：\-–—]?\s*(\d+)\s*(?:a|até|-|–|—)\s*(\d+)/gi
-  );
-
-  for (const match of matchesFaixa) {
-    const inicio = Number(match[1]);
-    const fim = Number(match[2]);
-
-    if (inicio > 0 && fim >= inicio && fim - inicio <= 100) {
-      for (let numero = inicio; numero <= fim; numero += 1) {
-        capitulosNumericos.push(String(numero));
-      }
-    }
-  }
-
-  const matchesCapituloNumero = texto.matchAll(
-    /cap[ií]tulo\s*(\d+)/gi
-  );
-
-  for (const match of matchesCapituloNumero) {
-    capitulosNumericos.push(String(match[1]));
-  }
-
-  const todos = [...capitulos, ...capitulosNumericos]
-    .map((item) =>
-      item
-        .replace(/^cap[ií]tulo\s*/i, "")
-        .replace(/^cap\s*/i, "")
-        .trim()
-    )
-    .filter(Boolean);
+  capitulos.push(...expandirFaixas(texto));
+  capitulos.push(...extrairCapitulosNumericos(texto));
 
   const vistos = new Set();
 
-  return todos.filter((item) => {
-    const chave = normalizarTexto(item);
+  return capitulos
+    .map((item) => limparCapituloInformado(item))
+    .filter(Boolean)
+    .filter((item) => {
+      const chave = normalizarTexto(item);
 
-    if (!chave || vistos.has(chave)) {
-      return false;
-    }
+      if (!chave || vistos.has(chave)) {
+        return false;
+      }
 
-    vistos.add(chave);
-    return true;
-  });
-}
-
-function capturarObra(texto = "") {
-  return capturarCampo(texto, [
-    "obra",
-    "obra lida",
-    "livro",
-    "historia",
-    "história",
-    "titulo",
-    "título",
-    "nome da obra",
-    "nome do livro"
-  ]);
+      vistos.add(chave);
+      return true;
+    });
 }
 
 export function interpretarFicha(textoFicha = "") {
-  const sub = capturarCampo(textoFicha, [
-    "sub",
-    "sub de leitura",
-    "sala",
-    "grupo"
-  ]);
-
-  const nomeLeitor = capturarCampo(textoFicha, [
-    "nome",
-    "nome do leitor",
-    "leitor",
-    "membro",
-    "participante"
-  ]);
-
+  const sub = capturarCampo(textoFicha, CAMPOS_SUB);
+  const nomeLeitor = capturarCampo(textoFicha, CAMPOS_NOME);
   const userLeitor = capturarUser(textoFicha);
+  const adm = capturarCampo(textoFicha, CAMPOS_ADM);
+  const obraLida = capturarCampo(textoFicha, CAMPOS_OBRA);
 
-  const adm = capturarCampo(textoFicha, [
-    "adm",
-    "admin",
-    "administrador",
-    "administradora",
-    "responsável",
-    "responsavel"
-  ]);
-
-  const obraLida = capturarObra(textoFicha);
   const capitulosInformados = extrairCapitulos(textoFicha);
 
   const minhaObra = detectarSim(textoFicha, [
