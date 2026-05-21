@@ -127,10 +127,17 @@ export default function Conferencia() {
       obraId: obra?.id || "",
       obraTitulo: obra?.titulo || "",
       capituloId: capitulo?.id || "",
+      wattpadId: capitulo?.wattpadId || capitulo?.id || "",
       titulo: capitulo?.titulo || textoFicha || "",
       link: capitulo?.link || "",
       palavras: Number(capitulo?.palavras || 0),
       paragrafos: Number(capitulo?.paragrafos || 0),
+      comentariosTotais: Number(capitulo?.comentariosTotais || 0),
+      distribuicaoComentarios: capitulo?.distribuicaoComentarios || {
+        inicio: 0,
+        meio: 0,
+        fim: 0
+      },
       ordem: capitulo?.ordem || "",
       tipo: capitulo?.tipo || "Normal",
       encontrado: Boolean(capitulo),
@@ -291,10 +298,17 @@ export default function Conferencia() {
         obraId: obra.id,
         obraTitulo: obra.titulo,
         capituloId: "",
+        wattpadId: "",
         titulo: leituras[index].textoFicha || "",
         link: "",
         palavras: 0,
         paragrafos: 0,
+        comentariosTotais: 0,
+        distribuicaoComentarios: {
+          inicio: 0,
+          meio: 0,
+          fim: 0
+        },
         ordem: "",
         encontrado: false
       };
@@ -322,10 +336,17 @@ export default function Conferencia() {
       leituras[index] = {
         ...leitura,
         capituloId: capitulo?.id || "",
+        wattpadId: capitulo?.wattpadId || capitulo?.id || "",
         titulo: capitulo?.titulo || leitura.titulo,
         link: capitulo?.link || "",
         palavras: Number(capitulo?.palavras || 0),
         paragrafos: Number(capitulo?.paragrafos || 0),
+        comentariosTotais: Number(capitulo?.comentariosTotais || 0),
+        distribuicaoComentarios: capitulo?.distribuicaoComentarios || {
+          inicio: 0,
+          meio: 0,
+          fim: 0
+        },
         ordem: capitulo?.ordem || "",
         tipo: capitulo?.tipo || leitura.tipo || "Normal",
         encontrado: Boolean(capitulo)
@@ -347,7 +368,10 @@ export default function Conferencia() {
       leituras[index] = {
         ...leituras[index],
         [campo]:
-          campo === "palavras" || campo === "paragrafos" || campo === "ordem"
+          campo === "palavras" ||
+          campo === "paragrafos" ||
+          campo === "ordem" ||
+          campo === "comentariosTotais"
             ? Number(valor || 0)
             : valor
       };
@@ -371,10 +395,17 @@ export default function Conferencia() {
           obraId: "",
           obraTitulo: "",
           capituloId: "",
+          wattpadId: "",
           titulo: "",
           link: "",
           palavras: 0,
           paragrafos: 0,
+          comentariosTotais: 0,
+          distribuicaoComentarios: {
+            inicio: 0,
+            meio: 0,
+            fim: 0
+          },
           ordem: "",
           tipo: "Normal",
           encontrado: false,
