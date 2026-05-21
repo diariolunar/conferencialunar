@@ -34,12 +34,31 @@ function limparValor(valor = "") {
 
 function pegarDepoisDosDoisPontos(linha = "") {
   const partes = linha.split(/[:：]/);
-
   if (partes.length <= 1) return "";
-
   partes.shift();
-
   return limparValor(partes.join(":"));
+}
+
+function linhaEhDecorativaOuFinal(linha = "") {
+  const normalizada = n(linha);
+
+  return (
+    !normalizada ||
+    normalizada === "," ||
+    normalizada.includes("confirmacao de leitura") ||
+    normalizada.includes("onde as historias") ||
+    normalizada.includes("onde as obras") ||
+    normalizada.includes("atravessam fronteiras") ||
+    normalizada.includes("que cada leitura") ||
+    normalizada.includes("que cada feedback") ||
+    normalizada.includes("palavras encontrem") ||
+    normalizada.includes("margens de mundos") ||
+    normalizada.includes("proj lunar") ||
+    normalizada.includes("projeto lunar") ||
+    normalizada.includes("adicionar comentario") ||
+    normalizada.includes("que palavras voce deixa") ||
+    normalizada.includes("que marca essa leitura")
+  );
 }
 
 function removerCampo(linha = "", campos = []) {
@@ -69,11 +88,9 @@ function capturarCampo(linhas = [], campos = []) {
     if (!encontrou) continue;
 
     const valorPorDoisPontos = pegarDepoisDosDoisPontos(linha);
-
     if (valorPorDoisPontos) return valorPorDoisPontos;
 
     const valor = removerCampo(linha, campos);
-
     if (valor) return valor;
   }
 
@@ -85,9 +102,7 @@ function capturarSub(linhas = []) {
     const normalizada = n(linha);
     const match = normalizada.match(/\ba\s*[- ]?\s*0?(\d+)\b/);
 
-    if (match) {
-      return `A-${Number(match[1])}`;
-    }
+    if (match) return `A-${Number(match[1])}`;
   }
 
   return "";
@@ -100,12 +115,9 @@ function capturarNome(linhas = []) {
 function capturarUser(linhas = [], textoOriginal = "") {
   const user = capturarCampo(linhas, ["user", "usuario", "usuário"]);
 
-  if (user) {
-    return user.replace(/^@/, "").trim();
-  }
+  if (user) return user.replace(/^@/, "").trim();
 
   const match = desestilizar(textoOriginal).match(/@([A-Za-z0-9_.-]+)/);
-
   return match?.[1] || "";
 }
 
@@ -113,40 +125,37 @@ function capturarAdm(linhas = []) {
   return capturarCampo(linhas, ["adm"]);
 }
 
-function linhaTemCampo(linha = "", campos = []) {
+function ehLinhaObra(linha = "") {
+  if (linhaEhDecorativaOuFinal(linha)) return false;
+
   const normalizada = n(linha);
 
-  return campos.some((campo) =>
-    normalizada.includes(normalizarTexto(campo))
+  return (
+    /^obra\s*\d+\s*[:：\-–—]/i.test(normalizada) ||
+    /^grimorio\s*\d+\s*[:：\-–—]/i.test(normalizada) ||
+    /^grimonio\s*\d+\s*[:：\-–—]/i.test(normalizada) ||
+    /^mundo\s*\d+\s*[:：\-–—]/i.test(normalizada) ||
+    /^livro\s*\d+\s*[:：\-–—]/i.test(normalizada)
   );
 }
 
-function ehLinhaObra(linha = "") {
-  return linhaTemCampo(linha, [
-    "obra",
-    "grimorio",
-    "grimório",
-    "grimonio",
-    "mundo",
-    "livro"
-  ]);
-}
+function ehCapitulos(linha = "") {
+  const normalizada = n(linha);
 
-function ehLinhaCapitulos(linha = "") {
-  return linhaTemCampo(linha, [
-    "capitulos lidos",
-    "capítulos lidos",
-    "capitulos",
-    "capítulos"
-  ]);
+  return (
+    normalizada.includes("capitulos lidos") ||
+    normalizada.startsWith("capitulos") ||
+    normalizada.startsWith("capitulo")
+  );
 }
 
 function ehFeedback(linha = "") {
-  return linhaTemCampo(linha, ["feedback"]);
+  return n(linha).startsWith("feedback");
 }
 
 function ehMinhaObra(linha = "") {
-  return linhaTemCampo(linha, ["minha obra", "obra propria", "obra própria"]);
+  const normalizada = n(linha);
+  return normalizada.startsWith("minha obra") || normalizada.includes("obra propria");
 }
 
 function ehAdmOuFinal(linha = "") {
@@ -154,24 +163,14 @@ function ehAdmOuFinal(linha = "") {
 
   return (
     normalizada.includes("adm") ||
-    normalizada.includes("adicionar comentario") ||
-    normalizada.includes("adicionar comentario ao autor") ||
-    normalizada.includes("que marca essa leitura") ||
-    normalizada.includes("que palavras voce deixa") ||
-    normalizada.includes("que cada leitura") ||
-    normalizada.includes("proj lunar") ||
-    normalizada.includes("projeto lunar") ||
-    normalizada.includes("trono profano") ||
-    normalizada.includes("margens de mundos")
+    linhaEhDecorativaOuFinal(linha)
   );
 }
 
 function removerCampoObra(linha = "") {
   const valorPorDoisPontos = pegarDepoisDosDoisPontos(linha);
 
-  if (valorPorDoisPontos) {
-    return valorPorDoisPontos;
-  }
+  if (valorPorDoisPontos) return valorPorDoisPontos;
 
   return removerCampo(linha, [
     "obra",
@@ -186,9 +185,7 @@ function removerCampoObra(linha = "") {
 function removerCampoCapitulos(linha = "") {
   const valorPorDoisPontos = pegarDepoisDosDoisPontos(linha);
 
-  if (valorPorDoisPontos) {
-    return valorPorDoisPontos;
-  }
+  if (valorPorDoisPontos) return valorPorDoisPontos;
 
   return removerCampo(linha, [
     "capitulos lidos",
@@ -210,18 +207,14 @@ function limparCapitulo(capitulo = "") {
 
 function separarCapitulos(valor = "") {
   const texto = limparValor(valor);
-
   if (!texto) return [];
 
   const capitulos = [];
-
   const matchesComNumero = [
     ...texto.matchAll(/(?:cap[íi]tulo|capitulo|cap)\s*(\d+)/gi)
   ];
 
-  matchesComNumero.forEach((match) => {
-    capitulos.push(match[1]);
-  });
+  matchesComNumero.forEach((match) => capitulos.push(match[1]));
 
   const textoSemNumerados = texto.replace(
     /(?:cap[íi]tulo|capitulo|cap)\s*\d+/gi,
@@ -233,9 +226,7 @@ function separarCapitulos(valor = "") {
     .map(limparCapitulo)
     .filter(Boolean)
     .forEach((item) => {
-      if (!capitulos.includes(item)) {
-        capitulos.push(item);
-      }
+      if (!capitulos.includes(item)) capitulos.push(item);
     });
 
   return capitulos.filter(Boolean);
@@ -257,7 +248,6 @@ function valorIndicaMinhaObra(valor = "") {
   return (
     normalizada.includes("minha obra") ||
     normalizada.includes("obra minha") ||
-    normalizada.includes("propria") ||
     normalizada.includes("propria")
   );
 }
@@ -281,9 +271,7 @@ function removerDuplicados(lista = []) {
 
   return lista.filter((item) => {
     const chave = n(item);
-
     if (!chave || vistos.has(chave)) return false;
-
     vistos.add(chave);
     return true;
   });
@@ -296,13 +284,16 @@ function extrairBlocosObras(linhas = []) {
   let lendoCapitulos = false;
 
   for (const linha of linhas) {
+    if (linhaEhDecorativaOuFinal(linha)) {
+      lendoCapitulos = false;
+      continue;
+    }
+
     if (ehLinhaObra(linha)) {
       const obra = removerCampoObra(linha);
 
-      if (obra) {
-        if (blocoAtual) {
-          blocos.push(blocoAtual);
-        }
+      if (obra && !linhaEhDecorativaOuFinal(obra)) {
+        if (blocoAtual) blocos.push(blocoAtual);
 
         blocoAtual = {
           obra,
@@ -319,9 +310,8 @@ function extrairBlocosObras(linhas = []) {
 
     if (!blocoAtual) continue;
 
-    if (ehLinhaCapitulos(linha)) {
+    if (ehCapitulos(linha)) {
       const valor = removerCampoCapitulos(linha);
-
       lendoCapitulos = true;
 
       if (valorIndicaMinhaObra(valor)) {
@@ -374,15 +364,13 @@ function extrairBlocosObras(linhas = []) {
         continue;
       }
 
-      if (capitulo) {
+      if (capitulo && !linhaEhDecorativaOuFinal(capitulo)) {
         blocoAtual.capitulos.push(capitulo);
       }
     }
   }
 
-  if (blocoAtual) {
-    blocos.push(blocoAtual);
-  }
+  if (blocoAtual) blocos.push(blocoAtual);
 
   return blocos
     .map((bloco) => ({
@@ -390,7 +378,7 @@ function extrairBlocosObras(linhas = []) {
       obra: limparValor(bloco.obra),
       capitulos: removerDuplicados(bloco.capitulos)
     }))
-    .filter((bloco) => bloco.obra);
+    .filter((bloco) => bloco.obra && !linhaEhDecorativaOuFinal(bloco.obra));
 }
 
 function detectarMinhaObraGlobal(linhas = []) {
