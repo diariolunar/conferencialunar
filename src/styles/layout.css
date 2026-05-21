@@ -1,0 +1,303 @@
+.app-layout {
+  min-height: 100vh;
+
+  display: grid;
+  grid-template-columns: 300px 1fr;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+
+  height: 100vh;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  padding: 28px 22px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(15, 17, 22, 0.98),
+      rgba(8, 9, 12, 0.98)
+    );
+
+  border-right: 1px solid var(--color-border);
+
+  overflow-y: auto;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
+  margin-bottom: 28px;
+}
+
+.logo-icon {
+  width: 54px;
+  height: 54px;
+
+  border-radius: 18px;
+
+  display: grid;
+  place-items: center;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 200, 87, 0.2),
+      rgba(255, 200, 87, 0.08)
+    );
+
+  border: 1px solid rgba(255, 200, 87, 0.16);
+
+  font-size: 24px;
+}
+
+.sidebar-logo strong {
+  display: block;
+
+  color: var(--color-gold);
+
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.sidebar-logo span {
+  display: block;
+
+  margin-top: 4px;
+
+  color: var(--color-muted);
+
+  font-size: 13px;
+}
+
+.sidebar-divider {
+  width: 100%;
+  height: 1px;
+
+  background: var(--color-border);
+
+  margin-bottom: 24px;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar-nav a {
+  display: flex;
+  align-items: center;
+
+  min-height: 52px;
+
+  padding: 0 16px;
+
+  border-radius: 14px;
+
+  text-decoration: none;
+
+  color: var(--color-muted);
+
+  font-weight: 700;
+
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    color var(--transition),
+    transform var(--transition);
+
+  border: 1px solid transparent;
+}
+
+.sidebar-nav a:hover {
+  background: rgba(255, 200, 87, 0.06);
+
+  border-color: rgba(255, 200, 87, 0.12);
+
+  color: var(--color-text);
+
+  transform: translateX(3px);
+}
+
+.sidebar-nav a.active {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 200, 87, 0.14),
+      rgba(255, 200, 87, 0.04)
+    );
+
+  border-color: rgba(255, 200, 87, 0.18);
+
+  color: var(--color-gold);
+}
+
+.sidebar-footer {
+  border: 1px solid var(--color-border);
+
+  border-radius: 16px;
+
+  padding: 16px;
+
+  background: rgba(255, 200, 87, 0.035);
+}
+
+.sidebar-footer span {
+  display: block;
+
+  color: var(--color-muted);
+
+  font-size: 13px;
+
+  margin-bottom: 6px;
+}
+
+.sidebar-footer strong {
+  display: block;
+
+  color: var(--color-gold);
+}
+
+.app-content {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+
+  padding: 26px 36px;
+
+  backdrop-filter: blur(16px);
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(5, 6, 8, 0.94),
+      rgba(5, 6, 8, 0.78)
+    );
+
+  border-bottom: 1px solid var(--color-border);
+}
+
+.header-kicker {
+  margin-bottom: 8px;
+
+  color: var(--color-gold-soft);
+
+  font-size: 13px;
+  font-weight: 800;
+
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.app-header h1 {
+  font-size: 32px;
+  line-height: 1;
+
+  color: var(--color-text);
+
+  letter-spacing: -1px;
+}
+
+.header-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 12px 16px;
+
+  border-radius: 999px;
+
+  background: rgba(255, 200, 87, 0.08);
+
+  border: 1px solid rgba(255, 200, 87, 0.14);
+
+  color: var(--color-gold);
+
+  font-weight: 800;
+  font-size: 14px;
+
+  white-space: nowrap;
+}
+
+.app-main {
+  flex: 1;
+
+  padding: 34px;
+}
+
+@media (max-width: 1200px) {
+  .app-layout {
+    grid-template-columns: 260px 1fr;
+  }
+}
+
+@media (max-width: 980px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: relative;
+
+    height: auto;
+
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .app-header {
+    position: relative;
+  }
+}
+
+@media (max-width: 700px) {
+  .app-header {
+    display: grid;
+  }
+
+  .app-header h1 {
+    font-size: 26px;
+  }
+
+  .app-main {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 560px) {
+  .sidebar {
+    padding: 18px;
+  }
+
+  .app-header {
+    padding: 18px;
+  }
+
+  .app-main {
+    padding: 16px;
+  }
+
+  .sidebar-nav a {
+    min-height: 48px;
+  }
+}

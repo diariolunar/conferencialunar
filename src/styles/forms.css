@@ -1,0 +1,116 @@
+.form-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.form-row-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.form-row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+label {
+  display: grid;
+  gap: 10px;
+  font-weight: 800;
+  color: var(--color-text);
+  font-size: 16px;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: rgba(4, 5, 7, 0.95);
+  color: var(--color-text);
+  outline: none;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 140px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(156, 148, 134, 0.68);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--color-gold);
+  box-shadow: 0 0 0 4px rgba(255, 200, 87, 0.08);
+}
+
+select option {
+  background: #08090b;
+  color: var(--color-text);
+}
+
+.button-primary,
+.button-secondary,
+.button-danger {
+  border-radius: 14px;
+  padding: 14px 20px;
+  font-weight: 900;
+  transition: 0.2s ease;
+}
+
+.button-primary {
+  border: 1px solid var(--color-gold);
+  background: var(--color-gold);
+  color: #171006;
+}
+
+.button-primary:hover {
+  background: var(--color-gold-soft);
+  box-shadow: 0 0 22px rgba(255, 200, 87, 0.16);
+}
+
+.button-secondary {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.button-secondary:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+  background: rgba(255, 200, 87, 0.06);
+}
+
+.button-danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border: 1px solid rgba(255, 107, 107, 0.35);
+}
+
+.button-danger:hover {
+  background: rgba(255, 107, 107, 0.16);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 760px) {
+  .form-row-2,
+  .form-row-3 {
+    grid-template-columns: 1fr;
+  }
+}
