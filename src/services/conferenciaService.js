@@ -79,6 +79,35 @@ function calcularTempoReal(comentarios = []) {
 }
 
 function gerarResultado({ capitulo, comentarios, minimoNecessario, tempoEstimado, tempoReal }) {
+  if (capitulo.minhaObra) {
+    return {
+      aprovado: true,
+      aprovadoManualmente: false,
+      motivoAprovacaoManual: "",
+      comentarios: [],
+      motivos: [],
+      regraAplicada: {
+        tipo: capitulo.tipo,
+        minimoComentarios: 0,
+        exigeDistribuicao: false,
+        exigeTempo: false,
+        minhaObra: true
+      },
+      estatisticas: {
+        comentarios: 0,
+        minimoNecessario: 0,
+        tempoEstimado,
+        tempoReal: 0,
+        distribuicao: {
+          inicio: 0,
+          meio: 0,
+          fim: 0
+        }
+      },
+      observacao: "Minha Obra: conferência aprovada automaticamente."
+    };
+  }
+
   const tipoNormalizado = normalizarTexto(capitulo.tipo);
   const distribuicao = contarPorPosicao(comentarios);
 
@@ -118,7 +147,8 @@ function gerarResultado({ capitulo, comentarios, minimoNecessario, tempoEstimado
       tipo: capitulo.tipo,
       minimoComentarios: minimoNecessario,
       exigeDistribuicao: ehNormal,
-      exigeTempo: ehNormal
+      exigeTempo: ehNormal,
+      minhaObra: false
     },
     estatisticas: {
       comentarios: comentarios.length,
@@ -134,6 +164,25 @@ export async function verificarLeiturasPreparadas({ leituras = [], regras = null
   const resultados = [];
 
   for (const leitura of leituras) {
+    const tempoEstimado = calcularTempoEstimado(leitura.palavras);
+
+    if (leitura.minhaObra) {
+      const resultado = gerarResultado({
+        capitulo: leitura,
+        comentarios: [],
+        minimoNecessario: 0,
+        tempoEstimado,
+        tempoReal: 0
+      });
+
+      resultados.push({
+        ...leitura,
+        resultado
+      });
+
+      continue;
+    }
+
     const minimoNecessario = calcularMinimoComentarios({
       palavras: leitura.palavras,
       tipo: leitura.tipo,
@@ -141,7 +190,6 @@ export async function verificarLeiturasPreparadas({ leituras = [], regras = null
     });
 
     const comentarios = gerarComentariosFake(leitura, minimoNecessario);
-    const tempoEstimado = calcularTempoEstimado(leitura.palavras);
     const tempoReal = calcularTempoReal(comentarios);
 
     const resultado = gerarResultado({

@@ -40,6 +40,7 @@ function removerPrefixoCampo(linha = "") {
       .replace(/^grimo[óo]rio\s*\d+\s*[:：\-–—]?\s*/i, "")
       .replace(/^cap[íi]tulos?\s*lidos\s*[:：\-–—]?\s*/i, "")
       .replace(/^feedback\s*(proferido|oferecido)?\s*\??\s*[:：\-–—]?\s*/i, "")
+      .replace(/^minha\s+obra\s*\??\s*[:：\-–—]?\s*/i, "")
   );
 }
 
@@ -105,6 +106,10 @@ function ehLinhaFeedback(linha = "") {
   return /^feedback\s*(proferido|oferecido)?\s*\??\s*[:：\-–—]?/i.test(linha);
 }
 
+function ehLinhaMinhaObra(linha = "") {
+  return /^minha\s+obra\s*\??\s*[:：\-–—]?/i.test(linha);
+}
+
 function ehLinhaAdm(linha = "") {
   return /^adm\s*[:：\-–—]/i.test(linha);
 }
@@ -164,6 +169,20 @@ function valorIndicaTudo(valor = "") {
   );
 }
 
+function valorIndicaSim(valor = "") {
+  const n = normalizar(valor);
+
+  return (
+    n === "s" ||
+    n === "sim" ||
+    n.includes("sim") ||
+    n.includes("yes") ||
+    n.includes("minha") ||
+    n.includes("propria") ||
+    n.includes("própria")
+  );
+}
+
 function extrairBlocosObras(linhas = []) {
   const blocos = [];
 
@@ -180,7 +199,8 @@ function extrairBlocosObras(linhas = []) {
         obra: removerPrefixoCampo(linha),
         capitulos: [],
         tudoLido: false,
-        feedbackOferecido: false
+        feedbackOferecido: false,
+        minhaObra: false
       };
 
       lendoCapitulos = false;
@@ -221,6 +241,15 @@ function extrairBlocosObras(linhas = []) {
       continue;
     }
 
+    if (ehLinhaMinhaObra(linha)) {
+      const valor = removerPrefixoCampo(linha);
+
+      blocoAtual.minhaObra = valorIndicaSim(valor);
+      lendoCapitulos = false;
+
+      continue;
+    }
+
     if (ehLinhaAdm(linha) || ehLinhaFinal(linha) || ehLinhaGrimorio(linha)) {
       lendoCapitulos = false;
       continue;
@@ -248,6 +277,16 @@ function extrairBlocosObras(linhas = []) {
     .filter((bloco) => bloco.obra);
 }
 
+function detectarMinhaObraGlobal(linhas = []) {
+  const linha = linhas.find((item) => ehLinhaMinhaObra(item));
+
+  if (!linha) {
+    return false;
+  }
+
+  return valorIndicaSim(removerPrefixoCampo(linha));
+}
+
 export function interpretarFicha(textoFicha = "") {
   const texto = desestilizar(textoFicha);
   const linhas = dividirLinhas(texto);
@@ -259,6 +298,8 @@ export function interpretarFicha(textoFicha = "") {
   const nomeLeitor = capturarNome(linhas);
   const userLeitor = capturarUser(linhas, texto);
   const adm = capturarAdm(linhas);
+
+  const minhaObraGlobal = detectarMinhaObraGlobal(linhas);
 
   const obraLida = primeiroBloco?.obra || "";
   const capitulosInformados = primeiroBloco?.capitulos || [];
@@ -276,15 +317,9 @@ export function interpretarFicha(textoFicha = "") {
   if (!obraLida) avisos.push("Obra lida não identificada automaticamente.");
   if (!capitulosInformados.length) avisos.push("Capítulos não identificados automaticamente.");
 
-  if (blocosObras.length > 1) {
+  if (blocosObras.some((bloco) => bloco.tudoLido)) {
     avisos.push(
-      "A ficha possui mais de uma obra. Por enquanto o sistema preparou automaticamente a primeira obra."
-    );
-  }
-
-  if (primeiroBloco?.tudoLido) {
-    avisos.push(
-      "A ficha informa que a obra foi lida inteira. Selecione manualmente os capítulos que deseja conferir."
+      "Uma ou mais obras foram marcadas como lidas inteiras. O sistema vai conferir os dois últimos capítulos cadastrados dessas obras."
     );
   }
 
@@ -296,7 +331,7 @@ export function interpretarFicha(textoFicha = "") {
     adm,
     obraLida,
     capitulosInformados,
-    minhaObra: false,
+    minhaObra: minhaObraGlobal || blocosObras.some((bloco) => bloco.minhaObra),
     feedbackOferecido,
     blocosObras,
     avisos
