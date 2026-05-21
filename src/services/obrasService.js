@@ -96,6 +96,10 @@ export async function salvarObra(obra) {
     wattpadId: obra.wattpadId || "",
     titulo: obra.titulo || "",
     tituloNormalizado: normalizarTexto(obra.titulo || ""),
+    autor: obra.autor || "",
+    autorNormalizado: normalizarTexto(obra.autor || ""),
+    userAutor: obra.userAutor || "",
+    userAutorNormalizado: normalizarTexto(obra.userAutor || ""),
     descricao: obra.descricao || "",
     capa: obra.capa || "",
     link: obra.link || "",
@@ -114,6 +118,8 @@ export async function atualizarObra(obraId, dados) {
     {
       ...dados,
       tituloNormalizado: normalizarTexto(dados.titulo || ""),
+      autorNormalizado: normalizarTexto(dados.autor || ""),
+      userAutorNormalizado: normalizarTexto(dados.userAutor || ""),
       atualizadoEm: serverTimestamp()
     },
     { merge: true }
@@ -131,14 +137,16 @@ export async function importarObraDoWattpad(link = "") {
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ link })
+    body: JSON.stringify({
+      link
+    })
   });
 
   const textoResposta = await resposta.text();
 
   if (!textoResposta) {
     throw new Error(
-      "A API não respondeu. No teste local com npm run dev, as rotas serverless da pasta api podem não funcionar. Teste a importação depois pelo Vercel ou usando vercel dev."
+      "A API não respondeu. Teste a importação pelo Vercel ou use a importação por colagem do Console."
     );
   }
 
@@ -148,7 +156,7 @@ export async function importarObraDoWattpad(link = "") {
     dados = JSON.parse(textoResposta);
   } catch {
     throw new Error(
-      "A API retornou algo que não é JSON. Isso geralmente acontece quando a rota /api não está rodando no ambiente local."
+      "A API retornou algo que não é JSON. Use a importação por colagem do Console."
     );
   }
 
