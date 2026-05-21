@@ -1,4 +1,8 @@
-export async function buscarDetalhesCapituloWattpad({ capituloId, linkCapitulo }) {
+export async function buscarDetalhesCapituloWattpad({
+  capituloId,
+  linkCapitulo,
+  userLeitor = ""
+}) {
   const resposta = await fetch("/api/wattpad/capitulo-detalhes", {
     method: "POST",
     headers: {
@@ -6,7 +10,8 @@ export async function buscarDetalhesCapituloWattpad({ capituloId, linkCapitulo }
     },
     body: JSON.stringify({
       capituloId,
-      linkCapitulo
+      linkCapitulo,
+      userLeitor
     })
   });
 

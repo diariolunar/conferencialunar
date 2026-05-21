@@ -16,6 +16,14 @@ function extrairIdCapitulo(linkOuId = "") {
   return "";
 }
 
+function normalizarUser(user = "") {
+  return String(user || "")
+    .normalize("NFKC")
+    .replace(/^@/, "")
+    .trim()
+    .toLowerCase();
+}
+
 function limparHtml(texto = "") {
   return String(texto || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -121,6 +129,78 @@ async function fetchParagrafosApi(capituloId) {
   return Array.isArray(dados.paragraphs) ? dados.paragraphs : [];
 }
 
+async function fetchComentariosParagrafo(capituloId, paragrafoId) {
+  if (!capituloId || !paragrafoId) {
+    return [];
+  }
+
+  const resourceId = `${capituloId}_${paragrafoId}`;
+
+  const url = `https://www.wattpad.com/v5/comments/namespaces/paragraphs/resources/${resourceId}/comments`;
+
+  const resposta = await fetch(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+      Accept: "application/json,text/plain,*/*",
+      "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
+    }
+  });
+
+  if (!resposta.ok) {
+    return [];
+  }
+
+  const dados = await resposta.json();
+
+  return Array.isArray(dados.comments) ? dados.comments : [];
+}
+
+async function buscarComentariosDoUsuario({
+  capituloId,
+  paragrafos = [],
+  userLeitor = ""
+}) {
+  const userNormalizado = normalizarUser(userLeitor);
+
+  if (!userNormalizado) {
+    return [];
+  }
+
+  const paragrafosComComentarios = paragrafos.filter(
+    (paragrafo) => Number(paragrafo.commentCount || 0) > 0 && paragrafo.id
+  );
+
+  const comentariosFiltrados = [];
+
+  for (const paragrafo of paragrafosComComentarios) {
+    const comentarios = await fetchComentariosParagrafo(capituloId, paragrafo.id);
+
+    comentarios.forEach((comentario) => {
+      const nomeComentario = normalizarUser(comentario.user?.name || "");
+
+      if (nomeComentario !== userNormalizado) {
+        return;
+      }
+
+      comentariosFiltrados.push({
+        id: comentario.commentId?.resourceId || `${paragrafo.id}-${comentariosFiltrados.length}`,
+        texto: comentario.text || "",
+        user: comentario.user?.name || "",
+        avatar: comentario.user?.avatar || "",
+        criadoEm: comentario.created || "",
+        modificadoEm: comentario.modified || "",
+        link: comentario.deeplink || "",
+        paragrafoId: paragrafo.id,
+        paragrafoIndice: paragrafo.indice,
+        posicao: paragrafo.posicao
+      });
+    });
+  }
+
+  return comentariosFiltrados;
+}
+
 function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
   const total = Math.max(paragrafosHtml.length, paragrafosApi.length);
 
@@ -143,6 +223,14 @@ function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
   return combinados;
 }
 
+function contarDistribuicaoComentarios(comentarios = []) {
+  return {
+    inicio: comentarios.filter((comentario) => comentario.posicao === "inicio").length,
+    meio: comentarios.filter((comentario) => comentario.posicao === "meio").length,
+    fim: comentarios.filter((comentario) => comentario.posicao === "fim").length
+  };
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({
@@ -152,7 +240,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { capituloId, linkCapitulo } = req.body || {};
+    const { capituloId, linkCapitulo, userLeitor } = req.body || {};
 
     const id = extrairIdCapitulo(capituloId || linkCapitulo);
 
@@ -171,37 +259,34 @@ export default async function handler(req, res) {
     const paragrafosHtml = extrairParagrafosDoHtml(html);
     const paragrafos = combinarParagrafos(paragrafosHtml, paragrafosApi);
 
+    const comentariosUsuario = await buscarComentariosDoUsuario({
+      capituloId: id,
+      paragrafos,
+      userLeitor
+    });
+
     const palavras = paragrafos.reduce(
       (total, paragrafo) => total + Number(paragrafo.palavras || 0),
       0
     );
 
-    const comentariosTotais = paragrafos.reduce(
+    const comentariosTotaisCapitulo = paragrafos.reduce(
       (total, paragrafo) => total + Number(paragrafo.commentCount || 0),
       0
     );
 
-    const distribuicaoComentarios = {
-      inicio: paragrafos
-        .filter((paragrafo) => paragrafo.posicao === "inicio")
-        .reduce((total, paragrafo) => total + Number(paragrafo.commentCount || 0), 0),
-
-      meio: paragrafos
-        .filter((paragrafo) => paragrafo.posicao === "meio")
-        .reduce((total, paragrafo) => total + Number(paragrafo.commentCount || 0), 0),
-
-      fim: paragrafos
-        .filter((paragrafo) => paragrafo.posicao === "fim")
-        .reduce((total, paragrafo) => total + Number(paragrafo.commentCount || 0), 0)
-    };
+    const distribuicaoComentariosUsuario =
+      contarDistribuicaoComentarios(comentariosUsuario);
 
     return res.status(200).json({
       sucesso: true,
       capituloId: id,
       palavras,
       paragrafos: paragrafos.length,
-      comentariosTotais,
-      distribuicaoComentarios,
+      comentariosTotaisCapitulo,
+      comentariosUsuarioTotal: comentariosUsuario.length,
+      distribuicaoComentarios: distribuicaoComentariosUsuario,
+      comentariosUsuario,
       paragrafosDetalhados: paragrafos
     });
   } catch (erro) {
