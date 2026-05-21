@@ -15,15 +15,16 @@ export default function Obras() {
   const [obras, setObras] = useState([]);
 
   const [modalAberto, setModalAberto] = useState(false);
-  const [abaModal, setAbaModal] = useState("console");
+
+  const [abaImportacao, setAbaImportacao] = useState("console");
 
   const [linkImportacao, setLinkImportacao] = useState("");
   const [textoImportacaoManual, setTextoImportacaoManual] = useState("");
 
-  const [importando, setImportando] = useState(false);
   const [previewImportacao, setPreviewImportacao] = useState(null);
 
   const [mensagem, setMensagem] = useState("");
+  const [importando, setImportando] = useState(false);
 
   async function carregarObras() {
     try {
@@ -35,31 +36,34 @@ export default function Obras() {
     }
   }
 
-  function abrirModalNovaObra() {
+  useEffect(() => {
+    carregarObras();
+  }, []);
+
+  function abrirModal() {
     setModalAberto(true);
-    setPreviewImportacao(null);
     setMensagem("");
-    setAbaModal("console");
+    setPreviewImportacao(null);
   }
 
   function fecharModal() {
     setModalAberto(false);
-    setPreviewImportacao(null);
+
     setLinkImportacao("");
     setTextoImportacaoManual("");
+    setPreviewImportacao(null);
   }
 
   async function prepararImportacao(evento) {
     evento.preventDefault();
 
     if (!linkImportacao.trim()) {
-      setMensagem("Cole o link da obra do Wattpad.");
+      setMensagem("Cole o link da obra.");
       return;
     }
 
     setImportando(true);
     setMensagem("");
-    setPreviewImportacao(null);
 
     try {
       const dados = await importarObraDoWattpad(linkImportacao);
@@ -68,12 +72,12 @@ export default function Obras() {
 
       if (dados.aviso) {
         setMensagem(dados.aviso);
-      } else {
-        setMensagem("Importação automática preparada com sucesso.");
       }
     } catch (erro) {
       console.error(erro);
-      setMensagem(erro.message || "Erro ao importar obra do Wattpad.");
+      setMensagem(
+        erro.message || "Erro ao importar obra."
+      );
     } finally {
       setImportando(false);
     }
@@ -83,19 +87,16 @@ export default function Obras() {
     evento.preventDefault();
 
     if (!textoImportacaoManual.trim()) {
-      setMensagem("Cole o texto gerado pelo bookmarklet do Wattpad.");
+      setMensagem("Cole os metadados copiados do Wattpad.");
       return;
     }
 
-    const dados = interpretarImportacaoWattpad(textoImportacaoManual);
+    const dados = interpretarImportacaoWattpad(
+      textoImportacaoManual
+    );
 
     if (!dados.obra.titulo) {
-      setMensagem("Não foi possível identificar o título da obra.");
-      return;
-    }
-
-    if (!dados.capitulos.length) {
-      setMensagem("Nenhum capítulo foi identificado na colagem.");
+      setMensagem("Título da obra não encontrado.");
       return;
     }
 
@@ -104,11 +105,10 @@ export default function Obras() {
       fonte: "bookmarklet",
       obra: dados.obra,
       capitulos: dados.capitulos,
-      totalCapitulos: dados.totalCapitulos,
-      aviso: ""
+      totalCapitulos: dados.totalCapitulos
     });
 
-    setMensagem("Importação por colagem preparada com sucesso.");
+    setMensagem("");
   }
 
   async function salvarImportacao() {
@@ -119,15 +119,22 @@ export default function Obras() {
     try {
       setImportando(true);
 
-      const obraId = await salvarObra(previewImportacao.obra);
+      const obraId = await salvarObra(
+        previewImportacao.obra
+      );
 
       if (previewImportacao.capitulos?.length) {
-        await salvarCapitulosDaObra(obraId, previewImportacao.capitulos);
+        await salvarCapitulosDaObra(
+          obraId,
+          previewImportacao.capitulos
+        );
       }
 
-      setMensagem("Obra salva com sucesso.");
-      fecharModal();
       await carregarObras();
+
+      fecharModal();
+
+      setMensagem("Obra salva com sucesso.");
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao salvar obra.");
@@ -137,85 +144,110 @@ export default function Obras() {
   }
 
   async function handleExcluir(obraId) {
-    const confirmar = window.confirm("Tem certeza que deseja excluir esta obra?");
+    const confirmar = window.confirm(
+      "Deseja realmente excluir esta obra?"
+    );
 
     if (!confirmar) return;
 
     try {
       await excluirObra(obraId);
-      setMensagem("Obra removida.");
+
       await carregarObras();
+
+      setMensagem("Obra excluída.");
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao excluir obra.");
     }
   }
 
-  useEffect(() => {
-    carregarObras();
-  }, []);
-
   return (
     <section className="page">
       <div className="page-title page-title-row">
         <div>
           <h2>Obras</h2>
-          <p>Gerencie as obras cadastradas para conferência.</p>
+
+          <p>
+            Gerencie as obras utilizadas nas conferências.
+          </p>
         </div>
 
-        <button type="button" className="button-primary" onClick={abrirModalNovaObra}>
+        <button
+          type="button"
+          className="button-primary"
+          onClick={abrirModal}
+        >
           Nova Obra
         </button>
       </div>
 
-      {mensagem && <div className="notice-card">{mensagem}</div>}
-
-      {obras.length === 0 ? (
-        <div className="card">
-          <div className="empty-state">
-            Nenhuma obra cadastrada. Clique em Nova Obra para começar.
-          </div>
+      {mensagem && (
+        <div className="notice-card">
+          {mensagem}
         </div>
-      ) : (
-        <div className="works-grid">
-          {obras.map((obra) => (
-            <article className="work-card" key={obra.id}>
-              <div className="work-cover">
+      )}
+
+      <div className="works-list">
+        {obras.length === 0 ? (
+          <div className="card">
+            <div className="empty-state">
+              Nenhuma obra cadastrada.
+            </div>
+          </div>
+        ) : (
+          obras.map((obra) => (
+            <article className="work-list-card" key={obra.id}>
+              <div className="work-list-cover">
                 {obra.capa ? (
-                  <img src={obra.capa} alt={`Capa da obra ${obra.titulo}`} />
+                  <img
+                    src={obra.capa}
+                    alt={obra.titulo}
+                  />
                 ) : (
-                  <div className="obra-cover-placeholder">Sem capa</div>
+                  <div className="obra-cover-placeholder">
+                    Sem capa
+                  </div>
                 )}
               </div>
 
-              <div className="work-info">
+              <div className="work-list-info">
                 <h3>{obra.titulo}</h3>
 
                 <p>
                   {obra.autor || "Autor não informado"}
-                  {obra.userAutor ? ` • @${obra.userAutor}` : ""}
+                  {obra.userAutor
+                    ? ` • @${obra.userAutor}`
+                    : ""}
                 </p>
 
-                <span>Wattpad ID: {obra.wattpadId || "-"}</span>
+                <span>
+                  Wattpad ID: {obra.wattpadId || "-"}
+                </span>
               </div>
 
-              <div className="work-actions">
-                <Link className="button-secondary" to={`/obras/${obra.id}`}>
+              <div className="work-list-actions">
+                <Link
+                  to={`/obras/${obra.id}`}
+                  className="button-secondary"
+                >
                   Detalhes
                 </Link>
 
                 <button
                   type="button"
                   className="button-danger"
-                  onClick={() => handleExcluir(obra.id)}
+                  onClick={() =>
+                    handleExcluir(obra.id)
+                  }
                 >
                   Excluir
                 </button>
               </div>
             </article>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
 
       {modalAberto && (
         <div className="modal-backdrop">
@@ -223,10 +255,17 @@ export default function Obras() {
             <div className="modal-header">
               <div>
                 <h3>Nova Obra</h3>
-                <p>Importe automaticamente ou cole os metadados do bookmarklet.</p>
+
+                <p>
+                  Importe uma obra do Wattpad.
+                </p>
               </div>
 
-              <button type="button" className="modal-close" onClick={fecharModal}>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={fecharModal}
+              >
                 ×
               </button>
             </div>
@@ -234,56 +273,75 @@ export default function Obras() {
             <div className="modal-tabs">
               <button
                 type="button"
-                className={abaModal === "console" ? "active" : ""}
-                onClick={() => setAbaModal("console")}
+                className={
+                  abaImportacao === "console"
+                    ? "active"
+                    : ""
+                }
+                onClick={() =>
+                  setAbaImportacao("console")
+                }
               >
-                Colagem do bookmarklet
+                Bookmarklet
               </button>
 
               <button
                 type="button"
-                className={abaModal === "link" ? "active" : ""}
-                onClick={() => setAbaModal("link")}
+                className={
+                  abaImportacao === "link"
+                    ? "active"
+                    : ""
+                }
+                onClick={() =>
+                  setAbaImportacao("link")
+                }
               >
-                Link da obra
+                Link automático
               </button>
             </div>
 
-            {abaModal === "console" && (
-              <form className="form-grid" onSubmit={prepararImportacaoManual}>
+            {abaImportacao === "console" && (
+              <form
+                className="form-grid"
+                onSubmit={prepararImportacaoManual}
+              >
                 <label>
-                  Texto copiado do Wattpad
+                  Cole os dados copiados do Wattpad
                   <textarea
-                    rows="10"
+                    rows="12"
                     value={textoImportacaoManual}
                     onChange={(evento) =>
-                      setTextoImportacaoManual(evento.target.value)
+                      setTextoImportacaoManual(
+                        evento.target.value
+                      )
                     }
-                    placeholder={`TÍTULO: Nome da obra
-CAPA: https://...
-LINK: https://www.wattpad.com/story/...
-
-CAPÍTULOS:
-1. Prólogo | https://www.wattpad.com/123456
-2. A do meio | https://www.wattpad.com/789101`}
                   />
                 </label>
 
-                <button type="submit" className="button-secondary">
-                  Preparar importação por colagem
+                <button
+                  type="submit"
+                  className="button-secondary"
+                >
+                  Preparar importação
                 </button>
               </form>
             )}
 
-            {abaModal === "link" && (
-              <form className="form-grid" onSubmit={prepararImportacao}>
+            {abaImportacao === "link" && (
+              <form
+                className="form-grid"
+                onSubmit={prepararImportacao}
+              >
                 <label>
                   Link da obra
                   <input
                     type="text"
                     value={linkImportacao}
-                    onChange={(evento) => setLinkImportacao(evento.target.value)}
-                    placeholder="https://www.wattpad.com/story/123456"
+                    onChange={(evento) =>
+                      setLinkImportacao(
+                        evento.target.value
+                      )
+                    }
                   />
                 </label>
 
@@ -292,61 +350,59 @@ CAPÍTULOS:
                   className="button-secondary"
                   disabled={importando}
                 >
-                  {importando ? "Importando..." : "Preparar importação automática"}
+                  {importando
+                    ? "Importando..."
+                    : "Preparar importação"}
                 </button>
               </form>
             )}
 
             {previewImportacao && (
               <div className="modal-preview">
-                <h3>Prévia da importação</h3>
-
                 <div className="obra-header-card">
                   {previewImportacao.obra.capa ? (
                     <img
-                      src={previewImportacao.obra.capa}
-                      alt={previewImportacao.obra.titulo}
+                      src={
+                        previewImportacao.obra.capa
+                      }
+                      alt={
+                        previewImportacao.obra
+                          .titulo
+                      }
                     />
                   ) : (
-                    <div className="obra-cover-placeholder">Sem capa</div>
+                    <div className="obra-cover-placeholder">
+                      Sem capa
+                    </div>
                   )}
 
                   <div>
-                    <h3>{previewImportacao.obra.titulo}</h3>
+                    <h3>
+                      {
+                        previewImportacao.obra
+                          .titulo
+                      }
+                    </h3>
 
                     <p>
-                      {previewImportacao.obra.autor || "Autor não informado"}
-                      {previewImportacao.obra.userAutor
+                      {previewImportacao.obra
+                        .autor ||
+                        "Autor não informado"}
+
+                      {previewImportacao.obra
+                        .userAutor
                         ? ` • @${previewImportacao.obra.userAutor}`
                         : ""}
                     </p>
 
-                    {previewImportacao.obra.link && (
-                      <a
-                        href={previewImportacao.obra.link}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Abrir obra no Wattpad
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                <div className="conference-summary-grid">
-                  <div>
-                    <span>Capítulos encontrados</span>
-                    <strong>{previewImportacao.totalCapitulos}</strong>
-                  </div>
-
-                  <div>
-                    <span>Fonte</span>
-                    <strong>{previewImportacao.fonte}</strong>
-                  </div>
-
-                  <div>
-                    <span>Wattpad ID</span>
-                    <strong>{previewImportacao.obra.wattpadId || "-"}</strong>
+                    <p>
+                      Capítulos encontrados:{" "}
+                      <strong>
+                        {
+                          previewImportacao.totalCapitulos
+                        }
+                      </strong>
+                    </p>
                   </div>
                 </div>
 
@@ -354,36 +410,29 @@ CAPÍTULOS:
                   <table>
                     <thead>
                       <tr>
-                        <th>Ordem</th>
+                        <th>#</th>
                         <th>Título</th>
-                        <th>Palavras</th>
-                        <th>Parágrafos</th>
                       </tr>
                     </thead>
 
                     <tbody>
-                      {previewImportacao.capitulos.map((capitulo) => (
-                        <tr key={`${capitulo.ordem}-${capitulo.titulo}`}>
-                          <td>{capitulo.ordem}</td>
+                      {previewImportacao.capitulos.map(
+                        (capitulo) => (
+                          <tr
+                            key={`${capitulo.ordem}-${capitulo.titulo}`}
+                          >
+                            <td>
+                              {capitulo.ordem}
+                            </td>
 
-                          <td>
-                            {capitulo.link ? (
-                              <a
-                                href={capitulo.link}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                {capitulo.titulo}
-                              </a>
-                            ) : (
-                              capitulo.titulo
-                            )}
-                          </td>
-
-                          <td>{capitulo.palavras}</td>
-                          <td>{capitulo.paragrafos}</td>
-                        </tr>
-                      ))}
+                            <td>
+                              {
+                                capitulo.titulo
+                              }
+                            </td>
+                          </tr>
+                        )
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -395,7 +444,7 @@ CAPÍTULOS:
                     onClick={salvarImportacao}
                     disabled={importando}
                   >
-                    Salvar obra no sistema
+                    Salvar obra
                   </button>
                 </div>
               </div>
