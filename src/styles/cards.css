@@ -100,6 +100,67 @@
   justify-content: center;
 }
 
+/* STEPS / BLOCOS RECOLHÍVEIS */
+
+.step-card {
+  background: rgba(10, 12, 15, 0.92);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  margin-bottom: 22px;
+  overflow: hidden;
+}
+
+.step-card[open] {
+  border-color: rgba(255, 200, 87, 0.22);
+}
+
+.step-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+
+  padding: 22px 26px;
+
+  cursor: pointer;
+  list-style: none;
+
+  background: rgba(255, 200, 87, 0.035);
+}
+
+.step-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.step-card summary span {
+  color: var(--color-gold);
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.step-card summary strong {
+  color: var(--color-muted);
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.step-card summary::after {
+  content: "＋";
+  color: var(--color-gold);
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.step-card[open] summary::after {
+  content: "−";
+}
+
+.step-content {
+  padding: 26px;
+}
+
 /* OBRAS EM LISTA */
 
 .works-list {
@@ -697,6 +758,14 @@
     width: 76px;
     height: 110px;
   }
+
+  .step-card summary {
+    align-items: flex-start;
+  }
+
+  .step-card summary span {
+    font-size: 18px;
+  }
 }
 
 @media (max-width: 700px) {
@@ -731,5 +800,13 @@
 
   .modal-backdrop {
     padding: 10px;
+  }
+
+  .step-card summary {
+    display: grid;
+  }
+
+  .step-content {
+    padding: 18px;
   }
 }

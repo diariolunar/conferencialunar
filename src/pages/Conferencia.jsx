@@ -36,6 +36,10 @@ export default function Conferencia() {
 
   const [mensagem, setMensagem] = useState("");
 
+  const [fichaAberta, setFichaAberta] = useState(true);
+  const [interpretacaoAberta, setInterpretacaoAberta] = useState(true);
+  const [planoAberto, setPlanoAberto] = useState(true);
+
   async function carregarBase() {
     try {
       const [obrasEncontradas, subsEncontrados, regrasEncontradas] =
@@ -54,24 +58,40 @@ export default function Conferencia() {
     carregarBase();
   }, []);
 
+  function limparCodigo(texto = "") {
+    return normalizarTexto(texto)
+      .replace(/[^a-z0-9]/g, "")
+      .trim();
+  }
+
   function encontrarSubPorNome(nomeSub = "") {
     const nomeNormalizado = normalizarTexto(nomeSub);
+    const codigoSub = limparCodigo(nomeSub);
 
-    if (!nomeNormalizado) return null;
+    if (!nomeNormalizado && !codigoSub) return null;
 
-    const exato = subs.find(
-      (sub) => normalizarTexto(sub.nome) === nomeNormalizado
-    );
+    const exato = subs.find((sub) => {
+      const subNormalizado = normalizarTexto(sub.nome);
+      const codigoBanco = limparCodigo(sub.nome);
+
+      return (
+        subNormalizado === nomeNormalizado ||
+        codigoBanco === codigoSub
+      );
+    });
 
     if (exato) return exato;
 
     return (
       subs.find((sub) => {
         const subNormalizado = normalizarTexto(sub.nome);
+        const codigoBanco = limparCodigo(sub.nome);
 
         return (
           subNormalizado.includes(nomeNormalizado) ||
-          nomeNormalizado.includes(subNormalizado)
+          nomeNormalizado.includes(subNormalizado) ||
+          codigoBanco.includes(codigoSub) ||
+          codigoSub.includes(codigoBanco)
         );
       }) || null
     );
@@ -98,6 +118,22 @@ export default function Conferencia() {
         );
       }) || null
     );
+  }
+
+  function montarLeitura({ textoFicha, obra, capitulo }) {
+    return {
+      textoFicha,
+      obraId: obra?.id || "",
+      obraTitulo: obra?.titulo || "",
+      capituloId: capitulo?.id || "",
+      titulo: capitulo?.titulo || textoFicha || "",
+      link: capitulo?.link || "",
+      palavras: Number(capitulo?.palavras || 0),
+      paragrafos: Number(capitulo?.paragrafos || 0),
+      ordem: capitulo?.ordem || "",
+      tipo: capitulo?.tipo || "Normal",
+      encontrado: Boolean(capitulo)
+    };
   }
 
   async function prepararConferencia(evento) {
@@ -153,28 +189,16 @@ export default function Conferencia() {
         capitulosDaObra,
         leituras
       });
+
+      setFichaAberta(false);
+      setInterpretacaoAberta(true);
+      setPlanoAberto(true);
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao preparar conferência.");
     } finally {
       setPreparando(false);
     }
-  }
-
-  function montarLeitura({ textoFicha, obra, capitulo }) {
-    return {
-      textoFicha,
-      obraId: obra?.id || "",
-      obraTitulo: obra?.titulo || "",
-      capituloId: capitulo?.id || "",
-      titulo: capitulo?.titulo || textoFicha || "",
-      link: capitulo?.link || "",
-      palavras: Number(capitulo?.palavras || 0),
-      paragrafos: Number(capitulo?.paragrafos || 0),
-      ordem: capitulo?.ordem || "",
-      tipo: capitulo?.tipo || "Normal",
-      encontrado: Boolean(capitulo)
-    };
   }
 
   async function alterarObraManual(obraId) {
@@ -336,6 +360,9 @@ export default function Conferencia() {
 
       setResultadoVerificacao(resultados);
       setMensagem("Verificação concluída. Revise antes de salvar.");
+
+      setInterpretacaoAberta(false);
+      setPlanoAberto(false);
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao verificar leituras.");
@@ -419,6 +446,9 @@ export default function Conferencia() {
       setDiaSemana("");
       setPlano(null);
       setResultadoVerificacao([]);
+      setFichaAberta(true);
+      setInterpretacaoAberta(true);
+      setPlanoAberto(true);
     } catch (erro) {
       console.error(erro);
       setMensagem(erro.message || "Erro ao salvar no histórico.");
@@ -447,282 +477,297 @@ export default function Conferencia() {
 
       {mensagem && <div className="notice-card">{mensagem}</div>}
 
-      <div className="card">
-        <h3>Ficha de leitura</h3>
+      <details className="step-card" open={fichaAberta}>
+        <summary>
+          <span>1. Ficha de leitura</span>
+          <strong>{plano ? "Preparada" : "Pendente"}</strong>
+        </summary>
 
-        <form className="form-grid" onSubmit={prepararConferencia}>
-          <label>
-            Dia da leitura
-            <select
-              value={diaSemana}
-              onChange={(evento) => setDiaSemana(evento.target.value)}
-            >
-              <option value="">Selecione o dia</option>
+        <div className="step-content">
+          <form className="form-grid" onSubmit={prepararConferencia}>
+            <label>
+              Dia da leitura
+              <select
+                value={diaSemana}
+                onChange={(evento) => setDiaSemana(evento.target.value)}
+              >
+                <option value="">Selecione o dia</option>
 
-              {DIAS_SEMANA.map((dia) => (
-                <option key={dia} value={dia}>
-                  {dia}
-                </option>
-              ))}
-            </select>
-          </label>
+                {DIAS_SEMANA.map((dia) => (
+                  <option key={dia} value={dia}>
+                    {dia}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label>
-            Ficha preenchida
-            <textarea
-              rows="12"
-              value={textoFicha}
-              onChange={(evento) => setTextoFicha(evento.target.value)}
-              placeholder="Cole aqui a ficha preenchida pelo membro..."
-            />
-          </label>
+            <label>
+              Ficha preenchida
+              <textarea
+                rows="12"
+                value={textoFicha}
+                onChange={(evento) => setTextoFicha(evento.target.value)}
+                placeholder="Cole aqui a ficha preenchida pelo membro..."
+              />
+            </label>
 
-          <button type="submit" className="button-primary" disabled={preparando}>
-            {preparando ? "Preparando..." : "Preparar conferência"}
-          </button>
-        </form>
-      </div>
+            <button type="submit" className="button-primary" disabled={preparando}>
+              {preparando ? "Preparando..." : "Preparar conferência"}
+            </button>
+          </form>
+        </div>
+      </details>
 
       {plano && (
         <>
-          <div className="card">
-            <h3>Prévia da interpretação</h3>
+          <details className="step-card" open={interpretacaoAberta}>
+            <summary>
+              <span>2. Prévia da interpretação</span>
+              <strong>{plano.subEncontrado ? "Sub encontrado" : "Revisar"}</strong>
+            </summary>
 
-            <div className="interpretation-preview">
-              <div>
-                <span>Sub interpretado</span>
-                <strong>{plano.ficha.sub || "Não identificado"}</strong>
+            <div className="step-content">
+              <div className="interpretation-preview">
+                <div>
+                  <span>Sub interpretado</span>
+                  <strong>{plano.ficha.sub || "Não identificado"}</strong>
+                </div>
+
+                <div>
+                  <span>Sub no banco</span>
+                  <strong>{plano.subEncontrado ? plano.subSelecionado : "Não encontrado"}</strong>
+                </div>
+
+                <div>
+                  <span>Leitor</span>
+                  <strong>{plano.ficha.nomeLeitor || "Não identificado"}</strong>
+                </div>
+
+                <div>
+                  <span>User</span>
+                  <strong>{plano.ficha.userLeitor || "Não identificado"}</strong>
+                </div>
+
+                <div>
+                  <span>ADM</span>
+                  <strong>{plano.ficha.adm || "Não identificado"}</strong>
+                </div>
+
+                <div>
+                  <span>Obra informada</span>
+                  <strong>{plano.ficha.obraLida || "Não identificada"}</strong>
+                </div>
+
+                <div>
+                  <span>Obra encontrada</span>
+                  <strong>{plano.obraEncontrada?.titulo || "Não encontrada"}</strong>
+                </div>
+
+                <div>
+                  <span>Capítulos na ficha</span>
+                  <strong>{plano.ficha.capitulosInformados.length}</strong>
+                </div>
+
+                <div>
+                  <span>Minha Obra</span>
+                  <strong>{plano.ficha.minhaObra ? "Sim" : "Não"}</strong>
+                </div>
+
+                <div>
+                  <span>Feedback oferecido</span>
+                  <strong>{plano.ficha.feedbackOferecido ? "Sim" : "Não"}</strong>
+                </div>
               </div>
 
-              <div>
-                <span>Sub no banco</span>
-                <strong>{plano.subEncontrado ? "Encontrado" : "Não encontrado"}</strong>
-              </div>
-
-              <div>
-                <span>Leitor</span>
-                <strong>{plano.ficha.nomeLeitor || "Não identificado"}</strong>
-              </div>
-
-              <div>
-                <span>User</span>
-                <strong>{plano.ficha.userLeitor || "Não identificado"}</strong>
-              </div>
-
-              <div>
-                <span>ADM</span>
-                <strong>{plano.ficha.adm || "Não identificado"}</strong>
-              </div>
-
-              <div>
-                <span>Obra informada</span>
-                <strong>{plano.ficha.obraLida || "Não identificada"}</strong>
-              </div>
-
-              <div>
-                <span>Obra encontrada</span>
-                <strong>{plano.obraEncontrada?.titulo || "Não encontrada"}</strong>
-              </div>
-
-              <div>
-                <span>Capítulos na ficha</span>
-                <strong>{plano.ficha.capitulosInformados.length}</strong>
-              </div>
-
-              <div>
-                <span>Minha Obra</span>
-                <strong>{plano.ficha.minhaObra ? "Sim" : "Não"}</strong>
-              </div>
-
-              <div>
-                <span>Feedback oferecido</span>
-                <strong>{plano.ficha.feedbackOferecido ? "Sim" : "Não"}</strong>
-              </div>
-            </div>
-
-            {plano.ficha.avisos.length > 0 && (
-              <div className="warning-list">
-                {plano.ficha.avisos.map((aviso) => (
-                  <p key={aviso}>⚠️ {aviso}</p>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="card">
-            <h3>Plano de conferência</h3>
-
-            <div className="form-grid conference-edit-area">
-              <label>
-                Obra
-                <select
-                  value={plano.obraSelecionadaId}
-                  onChange={(evento) => alterarObraManual(evento.target.value)}
-                >
-                  <option value="">Selecione uma obra</option>
-
-                  {obras.map((obra) => (
-                    <option key={obra.id} value={obra.id}>
-                      {obra.titulo}
-                      {obra.autor ? ` — ${obra.autor}` : ""}
-                    </option>
+              {plano.ficha.avisos.length > 0 && (
+                <div className="warning-list">
+                  {plano.ficha.avisos.map((aviso) => (
+                    <p key={aviso}>⚠️ {aviso}</p>
                   ))}
-                </select>
-              </label>
-
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={adicionarCapituloManual}
-              >
-                Adicionar capítulo
-              </button>
+                </div>
+              )}
             </div>
+          </details>
 
-            {plano.leituras.length === 0 ? (
-              <div className="empty-state">
-                Nenhuma leitura preparada. Selecione uma obra e adicione capítulos.
+          <details className="step-card" open={planoAberto}>
+            <summary>
+              <span>3. Plano de conferência</span>
+              <strong>{plano.leituras.length} leitura(s)</strong>
+            </summary>
+
+            <div className="step-content">
+              <div className="form-grid conference-edit-area">
+                <label>
+                  Obra
+                  <select
+                    value={plano.obraSelecionadaId}
+                    onChange={(evento) => alterarObraManual(evento.target.value)}
+                  >
+                    <option value="">Selecione uma obra</option>
+
+                    {obras.map((obra) => (
+                      <option key={obra.id} value={obra.id}>
+                        {obra.titulo}
+                        {obra.autor ? ` — ${obra.autor}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={adicionarCapituloManual}
+                >
+                  Adicionar capítulo
+                </button>
               </div>
-            ) : (
-              <div className="conference-list">
-                {plano.leituras.map((leitura, index) => (
-                  <div className="conference-item" key={`${index}-${leitura.textoFicha}`}>
-                    <div className="conference-item-header">
-                      <div>
-                        <span>Informado na ficha</span>
-                        <strong>{leitura.textoFicha}</strong>
-                      </div>
 
-                      <button
-                        type="button"
-                        className="button-danger"
-                        onClick={() => removerLeitura(index)}
-                      >
-                        Remover
-                      </button>
-                    </div>
+              {plano.leituras.length === 0 ? (
+                <div className="empty-state">
+                  Nenhuma leitura preparada. Selecione uma obra e adicione capítulos.
+                </div>
+              ) : (
+                <div className="conference-list">
+                  {plano.leituras.map((leitura, index) => (
+                    <div className="conference-item" key={`${index}-${leitura.textoFicha}`}>
+                      <div className="conference-item-header">
+                        <div>
+                          <span>Informado na ficha</span>
+                          <strong>{leitura.textoFicha}</strong>
+                        </div>
 
-                    <div className="form-row-2">
-                      <label>
-                        Capítulo cadastrado
-                        <select
-                          value={leitura.capituloId}
-                          onChange={(evento) =>
-                            alterarCapituloManual(index, evento.target.value)
-                          }
+                        <button
+                          type="button"
+                          className="button-danger"
+                          onClick={() => removerLeitura(index)}
                         >
-                          <option value="">Selecione o capítulo</option>
+                          Remover
+                        </button>
+                      </div>
 
-                          {plano.capitulosDaObra.map((capitulo) => (
-                            <option key={capitulo.id} value={capitulo.id}>
-                              {capitulo.titulo}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <div className="form-row-2">
+                        <label>
+                          Capítulo cadastrado
+                          <select
+                            value={leitura.capituloId}
+                            onChange={(evento) =>
+                              alterarCapituloManual(index, evento.target.value)
+                            }
+                          >
+                            <option value="">Selecione o capítulo</option>
+
+                            {plano.capitulosDaObra.map((capitulo) => (
+                              <option key={capitulo.id} value={capitulo.id}>
+                                {capitulo.titulo}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label>
+                          Tipo
+                          <select
+                            value={leitura.tipo}
+                            onChange={(evento) =>
+                              alterarCampoLeitura(index, "tipo", evento.target.value)
+                            }
+                          >
+                            {TIPOS_CAPITULO.map((tipo) => (
+                              <option key={tipo} value={tipo}>
+                                {tipo}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+
+                      <div className="form-row-3">
+                        <label>
+                          Título exibido
+                          <input
+                            type="text"
+                            value={leitura.titulo}
+                            onChange={(evento) =>
+                              alterarCampoLeitura(index, "titulo", evento.target.value)
+                            }
+                          />
+                        </label>
+
+                        <label>
+                          Palavras
+                          <input
+                            type="number"
+                            min="0"
+                            value={leitura.palavras}
+                            onChange={(evento) =>
+                              alterarCampoLeitura(index, "palavras", evento.target.value)
+                            }
+                          />
+                        </label>
+
+                        <label>
+                          Parágrafos
+                          <input
+                            type="number"
+                            min="0"
+                            value={leitura.paragrafos}
+                            onChange={(evento) =>
+                              alterarCampoLeitura(index, "paragrafos", evento.target.value)
+                            }
+                          />
+                        </label>
+                      </div>
 
                       <label>
-                        Tipo
-                        <select
-                          value={leitura.tipo}
-                          onChange={(evento) =>
-                            alterarCampoLeitura(index, "tipo", evento.target.value)
-                          }
-                        >
-                          {TIPOS_CAPITULO.map((tipo) => (
-                            <option key={tipo} value={tipo}>
-                              {tipo}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-
-                    <div className="form-row-3">
-                      <label>
-                        Título exibido
+                        Link do capítulo
                         <input
-                          type="text"
-                          value={leitura.titulo}
+                          type="url"
+                          value={leitura.link}
                           onChange={(evento) =>
-                            alterarCampoLeitura(index, "titulo", evento.target.value)
+                            alterarCampoLeitura(index, "link", evento.target.value)
                           }
                         />
                       </label>
 
-                      <label>
-                        Palavras
-                        <input
-                          type="number"
-                          min="0"
-                          value={leitura.palavras}
-                          onChange={(evento) =>
-                            alterarCampoLeitura(index, "palavras", evento.target.value)
-                          }
-                        />
-                      </label>
+                      <div className="chapter-meta-grid">
+                        <div>
+                          <span>Status</span>
+                          <strong>{leitura.encontrado ? "Encontrado" : "Manual"}</strong>
+                        </div>
 
-                      <label>
-                        Parágrafos
-                        <input
-                          type="number"
-                          min="0"
-                          value={leitura.paragrafos}
-                          onChange={(evento) =>
-                            alterarCampoLeitura(index, "paragrafos", evento.target.value)
-                          }
-                        />
-                      </label>
-                    </div>
+                        <div>
+                          <span>Ordem</span>
+                          <strong>{leitura.ordem || "-"}</strong>
+                        </div>
 
-                    <label>
-                      Link do capítulo
-                      <input
-                        type="url"
-                        value={leitura.link}
-                        onChange={(evento) =>
-                          alterarCampoLeitura(index, "link", evento.target.value)
-                        }
-                      />
-                    </label>
+                        <div>
+                          <span>Tipo</span>
+                          <strong>{leitura.tipo}</strong>
+                        </div>
 
-                    <div className="chapter-meta-grid">
-                      <div>
-                        <span>Status</span>
-                        <strong>{leitura.encontrado ? "Encontrado" : "Manual"}</strong>
-                      </div>
-
-                      <div>
-                        <span>Ordem</span>
-                        <strong>{leitura.ordem || "-"}</strong>
-                      </div>
-
-                      <div>
-                        <span>Tipo</span>
-                        <strong>{leitura.tipo}</strong>
-                      </div>
-
-                      <div>
-                        <span>Palavras</span>
-                        <strong>{leitura.palavras || 0}</strong>
+                        <div>
+                          <span>Palavras</span>
+                          <strong>{leitura.palavras || 0}</strong>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+
+              <div className="actions-row">
+                <button
+                  type="button"
+                  className="button-primary"
+                  onClick={iniciarVerificacao}
+                  disabled={verificando}
+                >
+                  {verificando ? "Verificando..." : "Iniciar verificação"}
+                </button>
               </div>
-            )}
-
-            <div className="actions-row">
-              <button
-                type="button"
-                className="button-primary"
-                onClick={iniciarVerificacao}
-                disabled={verificando}
-              >
-                {verificando ? "Verificando..." : "Iniciar verificação"}
-              </button>
             </div>
-          </div>
+          </details>
         </>
       )}
 
