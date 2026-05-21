@@ -107,6 +107,12 @@ export async function salvarCapituloDaObra(obraId, capitulo, index = 0) {
       link: capitulo.link || "",
       palavras: Number(capitulo.palavras || 0),
       paragrafos: Number(capitulo.paragrafos || 0),
+      comentariosTotais: Number(capitulo.comentariosTotais || 0),
+      distribuicaoComentarios: capitulo.distribuicaoComentarios || {
+        inicio: 0,
+        meio: 0,
+        fim: 0
+      },
       ordem: Number(capitulo.ordem || index + 1),
       tipo: capitulo.tipo || "Normal",
       atualizadoEm: serverTimestamp()
@@ -130,6 +136,44 @@ export async function salvarCapitulosDaObra(obraId, capitulos = []) {
   );
 
   await Promise.all(promessas);
+}
+
+export async function atualizarCapituloDaObra(obraId, capituloId, dados) {
+  const ref = doc(
+    db,
+    OBRAS_COLLECTION,
+    obraId,
+    CAPITULOS_COLLECTION,
+    capituloId
+  );
+
+  await setDoc(
+    ref,
+    {
+      ...dados,
+      tituloNormalizado:
+        dados.titulo !== undefined
+          ? normalizarTexto(dados.titulo || "")
+          : undefined,
+      atualizadoEm: serverTimestamp()
+    },
+    { merge: true }
+  );
+}
+
+export async function atualizarDetalhesCapitulo(obraId, capituloId, detalhes) {
+  await atualizarCapituloDaObra(obraId, capituloId, {
+    wattpadId: detalhes.capituloId || "",
+    palavras: Number(detalhes.palavras || 0),
+    paragrafos: Number(detalhes.paragrafos || 0),
+    comentariosTotais: Number(detalhes.comentariosTotais || 0),
+    distribuicaoComentarios: detalhes.distribuicaoComentarios || {
+      inicio: 0,
+      meio: 0,
+      fim: 0
+    },
+    paragrafosDetalhados: detalhes.paragrafosDetalhados || []
+  });
 }
 
 export async function listarCapitulosDaObra(obraId) {

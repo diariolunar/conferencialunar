@@ -7,10 +7,13 @@ import {
 } from "../services/obrasService.js";
 
 import {
+  atualizarDetalhesCapitulo,
   excluirCapitulo,
   listarCapitulosDaObra,
   salvarCapituloDaObra
 } from "../services/capitulosService.js";
+
+import { buscarDetalhesCapituloWattpad } from "../services/capitulosDetalhesService.js";
 
 const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
 
@@ -36,6 +39,9 @@ export default function ObraDetalhes() {
   const [carregando, setCarregando] = useState(true);
   const [salvandoObra, setSalvandoObra] = useState(false);
   const [salvandoCapitulo, setSalvandoCapitulo] = useState(false);
+  const [atualizandoCapituloId, setAtualizandoCapituloId] = useState("");
+  const [atualizandoTodos, setAtualizandoTodos] = useState(false);
+
   const [mensagem, setMensagem] = useState("");
 
   async function carregarDados() {
@@ -152,6 +158,78 @@ export default function ObraDetalhes() {
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao excluir capítulo.");
+    }
+  }
+
+  async function atualizarDetalhesDeUmCapitulo(capitulo) {
+    if (!capitulo.link && !capitulo.wattpadId) {
+      setMensagem("Este capítulo não possui link ou ID do Wattpad.");
+      return;
+    }
+
+    setAtualizandoCapituloId(capitulo.id);
+    setMensagem("");
+
+    try {
+      const detalhes = await buscarDetalhesCapituloWattpad({
+        capituloId: capitulo.wattpadId,
+        linkCapitulo: capitulo.link
+      });
+
+      await atualizarDetalhesCapitulo(obraId, capitulo.id, detalhes);
+
+      setMensagem(
+        `Detalhes atualizados: ${detalhes.palavras} palavras, ${detalhes.paragrafos} parágrafos.`
+      );
+
+      await carregarDados();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem(erro.message || "Erro ao atualizar detalhes do capítulo.");
+    } finally {
+      setAtualizandoCapituloId("");
+    }
+  }
+
+  async function atualizarDetalhesDeTodos() {
+    const confirmar = window.confirm(
+      "Deseja buscar palavras, parágrafos e comentários de todos os capítulos? Isso pode demorar."
+    );
+
+    if (!confirmar) return;
+
+    setAtualizandoTodos(true);
+    setMensagem("");
+
+    try {
+      let atualizados = 0;
+
+      for (const capitulo of capitulos) {
+        if (!capitulo.link && !capitulo.wattpadId) {
+          continue;
+        }
+
+        setMensagem(
+          `Atualizando ${atualizados + 1}/${capitulos.length}: ${capitulo.titulo}`
+        );
+
+        const detalhes = await buscarDetalhesCapituloWattpad({
+          capituloId: capitulo.wattpadId,
+          linkCapitulo: capitulo.link
+        });
+
+        await atualizarDetalhesCapitulo(obraId, capitulo.id, detalhes);
+
+        atualizados += 1;
+      }
+
+      setMensagem(`${atualizados} capítulo(s) atualizados com sucesso.`);
+      await carregarDados();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem(erro.message || "Erro ao atualizar detalhes dos capítulos.");
+    } finally {
+      setAtualizandoTodos(false);
     }
   }
 
@@ -378,7 +456,24 @@ export default function ObraDetalhes() {
       </div>
 
       <div className="card">
-        <h3>Capítulos cadastrados</h3>
+        <div className="page-title-row">
+          <div>
+            <h3>Capítulos cadastrados</h3>
+            <p>
+              Busque palavras, parágrafos e comentários reais do Wattpad para
+              melhorar a conferência.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="button-primary"
+            onClick={atualizarDetalhesDeTodos}
+            disabled={atualizandoTodos || capitulos.length === 0}
+          >
+            {atualizandoTodos ? "Atualizando..." : "Atualizar todos"}
+          </button>
+        </div>
 
         {capitulos.length === 0 ? (
           <div className="empty-state">
@@ -394,6 +489,8 @@ export default function ObraDetalhes() {
                   <th>Tipo</th>
                   <th>Palavras</th>
                   <th>Parágrafos</th>
+                  <th>Comentários</th>
+                  <th>Distribuição</th>
                   <th>Link</th>
                   <th>Ações</th>
                 </tr>
@@ -403,27 +500,58 @@ export default function ObraDetalhes() {
                 {capitulos.map((capitulo) => (
                   <tr key={capitulo.id}>
                     <td>{capitulo.ordem || "-"}</td>
+
                     <td>{capitulo.titulo}</td>
+
                     <td>{capitulo.tipo || "Normal"}</td>
+
                     <td>{capitulo.palavras || 0}</td>
+
                     <td>{capitulo.paragrafos || 0}</td>
+
+                    <td>{capitulo.comentariosTotais || 0}</td>
+
+                    <td>
+                      I: {capitulo.distribuicaoComentarios?.inicio || 0} / M:{" "}
+                      {capitulo.distribuicaoComentarios?.meio || 0} / F:{" "}
+                      {capitulo.distribuicaoComentarios?.fim || 0}
+                    </td>
+
                     <td>
                       {capitulo.link ? (
                         <a href={capitulo.link} target="_blank" rel="noreferrer">
-                          Abrir capítulo
+                          Abrir
                         </a>
                       ) : (
                         "Sem link"
                       )}
                     </td>
+
                     <td>
-                      <button
-                        type="button"
-                        className="button-danger"
-                        onClick={() => handleExcluirCapitulo(capitulo.id)}
-                      >
-                        Excluir
-                      </button>
+                      <div className="table-actions">
+                        <button
+                          type="button"
+                          className="button-secondary"
+                          onClick={() => atualizarDetalhesDeUmCapitulo(capitulo)}
+                          disabled={
+                            atualizandoTodos ||
+                            atualizandoCapituloId === capitulo.id
+                          }
+                        >
+                          {atualizandoCapituloId === capitulo.id
+                            ? "Buscando..."
+                            : "Buscar dados"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="button-danger"
+                          onClick={() => handleExcluirCapitulo(capitulo.id)}
+                          disabled={atualizandoTodos}
+                        >
+                          Excluir
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
