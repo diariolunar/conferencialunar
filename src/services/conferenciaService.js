@@ -4,232 +4,122 @@ function gerarNumeroAleatorio(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function gerarTempoReal(minimo) {
-  return minimo + gerarNumeroAleatorio(-2, 6);
-}
-
 function calcularTempoEstimado(palavras = 0) {
   const palavrasNumero = Number(palavras || 0);
 
   if (palavrasNumero <= 0) {
-    return 5;
+    return 0;
   }
 
-  return Math.max(5, Math.ceil(palavrasNumero / 220));
+  return Math.max(1, Math.ceil(palavrasNumero / 220));
 }
 
-function calcularMinimoComentarios({
-  palavras = 0,
-  paragrafos = 0,
-  tipo = "Normal",
-  regras = null
-}) {
+function calcularMinimoComentarios({ palavras = 0, tipo = "Normal", regras = null }) {
+  const tipoNormalizado = normalizarTexto(tipo);
   const palavrasNumero = Number(palavras || 0);
-  const paragrafosNumero = Number(paragrafos || 0);
 
-  if (tipo === "Poesia") {
-    return 3;
+  if (tipoNormalizado === "especial") {
+    return Number(regras?.minimoEspecial || 1);
   }
 
-  if (tipo === "Especial") {
-    return Math.max(6, Math.ceil(paragrafosNumero / 8));
+  if (tipoNormalizado === "poesia") {
+    return Number(regras?.minimoPoesia || 3);
   }
 
-  const baseadoEmParagrafos = Math.ceil(paragrafosNumero / 10);
-  const baseadoEmPalavras = Math.ceil(palavrasNumero / 1200);
-
-  const minimo = Math.max(
-    5,
-    baseadoEmParagrafos,
-    baseadoEmPalavras
-  );
-
-  if (!regras) {
-    return minimo;
+  if (palavrasNumero > 0 && palavrasNumero < Number(regras?.palavrasCapituloCurto || 500)) {
+    return Number(regras?.minimoCurto || 1);
   }
 
-  return Math.max(
-    minimo,
-    Number(regras.minimoComentariosNormal || 5)
-  );
+  if (palavrasNumero > Number(regras?.palavrasCapituloLongo || 4000)) {
+    return Number(regras?.minimoLongo || 12);
+  }
+
+  return Number(regras?.minimoNormal || 6);
 }
 
-function gerarComentariosFake(capitulo) {
-  const quantidade = gerarNumeroAleatorio(4, 12);
-
-  const posicoesBase = [
-    "início",
-    "meio",
-    "fim"
-  ];
-
+function gerarComentariosFake(capitulo, minimoNecessario) {
+  const quantidade = Math.max(minimoNecessario, gerarNumeroAleatorio(4, 8));
+  const posicoesBase = ["inicio", "meio", "fim"];
   const comentarios = [];
 
   for (let index = 0; index < quantidade; index += 1) {
-    const posicao =
-      posicoesBase[index % posicoesBase.length];
+    const posicao = posicoesBase[index % posicoesBase.length];
 
     comentarios.push({
       id: crypto.randomUUID(),
       posicao,
-      texto: gerarTextoComentario(posicao, capitulo.titulo),
-      link: capitulo.link
-        ? `${capitulo.link}#comentario-${index + 1}`
-        : ""
+      texto: `Comentário mock ${index + 1} em ${capitulo.titulo}`,
+      link: capitulo.link ? `${capitulo.link}#comentario-${index + 1}` : "",
+      timestamp: Date.now() + index * 120000
     });
   }
 
   return comentarios;
 }
 
-function gerarTextoComentario(posicao, titulo) {
-  const comentariosInicio = [
-    "Gostei muito da abertura desse capítulo.",
-    "Esse começo ficou muito forte.",
-    "A introdução me prendeu rápido.",
-    "Começou muito bem.",
-    "Esse início ficou interessante."
-  ];
-
-  const comentariosMeio = [
-    "Aqui a leitura ficou intensa.",
-    "Essa parte do meio ficou boa.",
-    "Gostei da construção dessa cena.",
-    "Essa interação ficou legal.",
-    "A narrativa ficou fluida aqui."
-  ];
-
-  const comentariosFim = [
-    "O final desse capítulo ficou forte.",
-    "Esse encerramento me deixou curioso.",
-    "Terminou muito bem.",
-    "Gostei muito desse final.",
-    "Esse fechamento ficou bom."
-  ];
-
-  let lista = comentariosInicio;
-
-  if (posicao === "meio") {
-    lista = comentariosMeio;
-  }
-
-  if (posicao === "fim") {
-    lista = comentariosFim;
-  }
-
-  const comentario =
-    lista[gerarNumeroAleatorio(0, lista.length - 1)];
-
-  return `${comentario} (${titulo})`;
-}
-
 function contarPorPosicao(comentarios = []) {
   return {
-    inicio: comentarios.filter(
-      (comentario) =>
-        normalizarTexto(comentario.posicao) === "inicio"
-    ).length,
-
-    meio: comentarios.filter(
-      (comentario) =>
-        normalizarTexto(comentario.posicao) === "meio"
-    ).length,
-
-    fim: comentarios.filter(
-      (comentario) =>
-        normalizarTexto(comentario.posicao) === "fim"
-    ).length
+    inicio: comentarios.filter((comentario) => normalizarTexto(comentario.posicao) === "inicio").length,
+    meio: comentarios.filter((comentario) => normalizarTexto(comentario.posicao) === "meio").length,
+    fim: comentarios.filter((comentario) => normalizarTexto(comentario.posicao) === "fim").length
   };
 }
 
-function validarDistribuicao(distribuicao) {
-  const motivos = [];
+function calcularTempoReal(comentarios = []) {
+  const timestamps = comentarios
+    .map((comentario) => comentario.timestamp)
+    .filter(Boolean)
+    .sort((a, b) => a - b);
 
-  if (distribuicao.inicio <= 0) {
-    motivos.push(
-      "Nenhum comentário identificado no início."
-    );
+  if (timestamps.length < 2) {
+    return 0;
   }
 
-  if (distribuicao.meio <= 0) {
-    motivos.push(
-      "Nenhum comentário identificado no meio."
-    );
-  }
-
-  if (distribuicao.fim <= 0) {
-    motivos.push(
-      "Nenhum comentário identificado no fim."
-    );
-  }
-
-  return motivos;
+  return Math.ceil((timestamps[timestamps.length - 1] - timestamps[0]) / 60000);
 }
 
-function validarTempo({
-  tempoEstimado,
-  tempoReal
-}) {
-  const motivos = [];
+function gerarResultado({ capitulo, comentarios, minimoNecessario, tempoEstimado, tempoReal }) {
+  const tipoNormalizado = normalizarTexto(capitulo.tipo);
+  const distribuicao = contarPorPosicao(comentarios);
 
-  if (tempoReal < tempoEstimado * 0.55) {
-    motivos.push(
-      "Tempo real muito abaixo do esperado para a leitura."
-    );
-  }
+  const ehEspecial = tipoNormalizado === "especial";
+  const ehPoesia = tipoNormalizado === "poesia";
+  const ehNormal = !ehEspecial && !ehPoesia;
 
-  return motivos;
-}
-
-function validarQuantidade({
-  comentarios,
-  minimoNecessario
-}) {
   const motivos = [];
 
   if (comentarios.length < minimoNecessario) {
-    motivos.push(
-      `Quantidade insuficiente de comentários (${comentarios.length}/${minimoNecessario}).`
-    );
+    motivos.push(`Quantidade insuficiente de comentários (${comentarios.length}/${minimoNecessario}).`);
   }
 
-  return motivos;
-}
+  if (ehNormal && distribuicao.inicio <= 0) {
+    motivos.push("Nenhum comentário identificado no início.");
+  }
 
-function gerarResultado({
-  capitulo,
-  comentarios,
-  minimoNecessario,
-  tempoEstimado,
-  tempoReal
-}) {
-  const distribuicao = contarPorPosicao(comentarios);
+  if (ehNormal && distribuicao.meio <= 0) {
+    motivos.push("Nenhum comentário identificado no meio.");
+  }
 
-  const motivos = [
-    ...validarQuantidade({
-      comentarios,
-      minimoNecessario
-    }),
+  if (ehNormal && distribuicao.fim <= 0) {
+    motivos.push("Nenhum comentário identificado no fim.");
+  }
 
-    ...validarDistribuicao(distribuicao),
-
-    ...validarTempo({
-      tempoEstimado,
-      tempoReal
-    })
-  ];
-
-  const aprovado = motivos.length === 0;
+  if (ehNormal && tempoEstimado > 0 && tempoReal > 0 && tempoReal < tempoEstimado * 0.55) {
+    motivos.push("Tempo real muito abaixo do esperado para a leitura.");
+  }
 
   return {
-    aprovado,
+    aprovado: motivos.length === 0,
     aprovadoManualmente: false,
     motivoAprovacaoManual: "",
-
     comentarios,
-
     motivos,
-
+    regraAplicada: {
+      tipo: capitulo.tipo,
+      minimoComentarios: minimoNecessario,
+      exigeDistribuicao: ehNormal,
+      exigeTempo: ehNormal
+    },
     estatisticas: {
       comentarios: comentarios.length,
       minimoNecessario,
@@ -240,28 +130,19 @@ function gerarResultado({
   };
 }
 
-export async function verificarLeiturasPreparadas({
-  leituras = [],
-  regras = null
-}) {
+export async function verificarLeiturasPreparadas({ leituras = [], regras = null }) {
   const resultados = [];
 
   for (const leitura of leituras) {
-    const comentarios = gerarComentariosFake(leitura);
+    const minimoNecessario = calcularMinimoComentarios({
+      palavras: leitura.palavras,
+      tipo: leitura.tipo,
+      regras
+    });
 
-    const minimoNecessario =
-      calcularMinimoComentarios({
-        palavras: leitura.palavras,
-        paragrafos: leitura.paragrafos,
-        tipo: leitura.tipo,
-        regras
-      });
-
-    const tempoEstimado =
-      calcularTempoEstimado(leitura.palavras);
-
-    const tempoReal =
-      gerarTempoReal(tempoEstimado);
+    const comentarios = gerarComentariosFake(leitura, minimoNecessario);
+    const tempoEstimado = calcularTempoEstimado(leitura.palavras);
+    const tempoReal = calcularTempoReal(comentarios);
 
     const resultado = gerarResultado({
       capitulo: leitura,
@@ -272,12 +153,7 @@ export async function verificarLeiturasPreparadas({
     });
 
     resultados.push({
-      capituloId: leitura.capituloId || "",
-      titulo: leitura.titulo,
-      tipo: leitura.tipo,
-      palavras: leitura.palavras,
-      paragrafos: leitura.paragrafos,
-      link: leitura.link,
+      ...leitura,
       resultado
     });
   }
