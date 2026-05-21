@@ -22,15 +22,11 @@ function extrairNumero(texto = "") {
     /(?:capitulo|cap|parte|episodio)\s*(\d+)/
   );
 
-  if (matchCapitulo?.[1]) {
-    return Number(matchCapitulo[1]);
-  }
+  if (matchCapitulo?.[1]) return Number(matchCapitulo[1]);
 
   const matchNumeroSolto = normalizado.match(/^(\d+)$/);
 
-  if (matchNumeroSolto?.[1]) {
-    return Number(matchNumeroSolto[1]);
-  }
+  if (matchNumeroSolto?.[1]) return Number(matchNumeroSolto[1]);
 
   return null;
 }
@@ -52,16 +48,12 @@ function calcularSimilaridade(textoA = "", textoB = "") {
     limparTituloParaComparacao(textoB).split(" ").filter(Boolean)
   );
 
-  if (palavrasA.size === 0 || palavrasB.size === 0) {
-    return 0;
-  }
+  if (palavrasA.size === 0 || palavrasB.size === 0) return 0;
 
   let intersecao = 0;
 
   palavrasA.forEach((palavra) => {
-    if (palavrasB.has(palavra)) {
-      intersecao += 1;
-    }
+    if (palavrasB.has(palavra)) intersecao += 1;
   });
 
   const total = new Set([...palavrasA, ...palavrasB]).size;
@@ -70,13 +62,8 @@ function calcularSimilaridade(textoA = "", textoB = "") {
 }
 
 function gerarIdCapitulo(capitulo, index = 0) {
-  if (capitulo.id) {
-    return String(capitulo.id);
-  }
-
-  if (capitulo.wattpadId) {
-    return String(capitulo.wattpadId);
-  }
+  if (capitulo.id) return String(capitulo.id);
+  if (capitulo.wattpadId) return String(capitulo.wattpadId);
 
   const baseTitulo = normalizarTexto(capitulo.titulo || `capitulo-${index + 1}`)
     .replace(/[^a-z0-9]+/g, "-")
@@ -147,18 +134,22 @@ export async function atualizarCapituloDaObra(obraId, capituloId, dados) {
     capituloId
   );
 
-  await setDoc(
-    ref,
-    {
-      ...dados,
-      tituloNormalizado:
-        dados.titulo !== undefined
-          ? normalizarTexto(dados.titulo || "")
-          : undefined,
-      atualizadoEm: serverTimestamp()
-    },
-    { merge: true }
-  );
+  const dadosLimpos = {
+    ...dados,
+    atualizadoEm: serverTimestamp()
+  };
+
+  if (dados.titulo !== undefined) {
+    dadosLimpos.tituloNormalizado = normalizarTexto(dados.titulo || "");
+  }
+
+  Object.keys(dadosLimpos).forEach((chave) => {
+    if (dadosLimpos[chave] === undefined) {
+      delete dadosLimpos[chave];
+    }
+  });
+
+  await setDoc(ref, dadosLimpos, { merge: true });
 }
 
 export async function atualizarDetalhesCapitulo(obraId, capituloId, detalhes) {
@@ -197,18 +188,14 @@ export function encontrarCapituloPorTexto(capitulos = [], texto = "") {
   const textoLimpo = limparTituloParaComparacao(texto);
   const numero = extrairNumero(texto);
 
-  if (!textoNormalizado) {
-    return null;
-  }
+  if (!textoNormalizado) return null;
 
   if (numero) {
     const porOrdem = capitulos.find(
       (capitulo) => Number(capitulo.ordem) === Number(numero)
     );
 
-    if (porOrdem) {
-      return porOrdem;
-    }
+    if (porOrdem) return porOrdem;
 
     const porTituloComNumero = capitulos.find((capitulo) => {
       const titulo = normalizarTexto(capitulo.titulo);
@@ -224,26 +211,20 @@ export function encontrarCapituloPorTexto(capitulos = [], texto = "") {
       );
     });
 
-    if (porTituloComNumero) {
-      return porTituloComNumero;
-    }
+    if (porTituloComNumero) return porTituloComNumero;
   }
 
   const porTituloExato = capitulos.find(
     (capitulo) => normalizarTexto(capitulo.titulo) === textoNormalizado
   );
 
-  if (porTituloExato) {
-    return porTituloExato;
-  }
+  if (porTituloExato) return porTituloExato;
 
   const porTituloLimpoExato = capitulos.find(
     (capitulo) => limparTituloParaComparacao(capitulo.titulo) === textoLimpo
   );
 
-  if (porTituloLimpoExato) {
-    return porTituloLimpoExato;
-  }
+  if (porTituloLimpoExato) return porTituloLimpoExato;
 
   const porParcial = capitulos.find((capitulo) => {
     const titulo = normalizarTexto(capitulo.titulo);
@@ -257,9 +238,7 @@ export function encontrarCapituloPorTexto(capitulos = [], texto = "") {
     );
   });
 
-  if (porParcial) {
-    return porParcial;
-  }
+  if (porParcial) return porParcial;
 
   const candidatos = capitulos
     .map((capitulo) => ({
@@ -269,9 +248,7 @@ export function encontrarCapituloPorTexto(capitulos = [], texto = "") {
     .filter((item) => item.similaridade >= 0.5)
     .sort((a, b) => b.similaridade - a.similaridade);
 
-  if (candidatos.length > 0) {
-    return candidatos[0].capitulo;
-  }
+  if (candidatos.length > 0) return candidatos[0].capitulo;
 
   return null;
 }
