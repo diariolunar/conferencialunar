@@ -9,14 +9,15 @@ import {
 } from "../services/obrasService.js";
 
 import { salvarCapitulosDaObra } from "../services/capitulosService.js";
+import { interpretarImportacaoWattpad } from "../utils/interpretarImportacaoWattpad.js";
 
 export default function Obras() {
   const [obras, setObras] = useState([]);
 
   const [linkImportacao, setLinkImportacao] = useState("");
+  const [textoImportacaoManual, setTextoImportacaoManual] = useState("");
 
   const [importando, setImportando] = useState(false);
-
   const [previewImportacao, setPreviewImportacao] = useState(null);
 
   const [mensagem, setMensagem] = useState("");
@@ -51,7 +52,7 @@ export default function Obras() {
       if (dados.aviso) {
         setMensagem(dados.aviso);
       } else {
-        setMensagem("Importação preparada com sucesso.");
+        setMensagem("Importação automática preparada com sucesso.");
       }
     } catch (erro) {
       console.error(erro);
@@ -61,6 +62,38 @@ export default function Obras() {
     } finally {
       setImportando(false);
     }
+  }
+
+  function prepararImportacaoManual(evento) {
+    evento.preventDefault();
+
+    if (!textoImportacaoManual.trim()) {
+      setMensagem("Cole o texto gerado pelo Console do Wattpad.");
+      return;
+    }
+
+    const dados = interpretarImportacaoWattpad(textoImportacaoManual);
+
+    if (!dados.obra.titulo) {
+      setMensagem("Não foi possível identificar o título da obra.");
+      return;
+    }
+
+    if (!dados.capitulos.length) {
+      setMensagem("Nenhum capítulo foi identificado na colagem.");
+      return;
+    }
+
+    setPreviewImportacao({
+      sucesso: true,
+      fonte: "console-manual",
+      obra: dados.obra,
+      capitulos: dados.capitulos,
+      totalCapitulos: dados.totalCapitulos,
+      aviso: ""
+    });
+
+    setMensagem("Importação por colagem preparada com sucesso.");
   }
 
   async function salvarImportacao() {
@@ -84,6 +117,7 @@ export default function Obras() {
 
       setPreviewImportacao(null);
       setLinkImportacao("");
+      setTextoImportacaoManual("");
 
       await carregarObras();
     } catch (erro) {
@@ -133,7 +167,7 @@ export default function Obras() {
       )}
 
       <div className="card">
-        <h3>Importar obra do Wattpad</h3>
+        <h3>Importar obra automaticamente</h3>
 
         <form className="form-grid" onSubmit={prepararImportacao}>
           <label>
@@ -155,7 +189,38 @@ export default function Obras() {
           >
             {importando
               ? "Importando..."
-              : "Preparar importação"}
+              : "Preparar importação automática"}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <h3>Importar por colagem do Console</h3>
+
+        <form className="form-grid" onSubmit={prepararImportacaoManual}>
+          <label>
+            Texto copiado do Console do Wattpad
+            <textarea
+              rows="12"
+              value={textoImportacaoManual}
+              onChange={(evento) =>
+                setTextoImportacaoManual(evento.target.value)
+              }
+              placeholder={`TÍTULO: Nome da obra
+CAPA: https://...
+LINK: https://www.wattpad.com/story/...
+
+CAPÍTULOS:
+1. Prólogo | https://www.wattpad.com/123456
+2. A do meio | https://www.wattpad.com/789101`}
+            />
+          </label>
+
+          <button
+            type="submit"
+            className="button-secondary"
+          >
+            Preparar importação por colagem
           </button>
         </form>
       </div>
@@ -216,7 +281,7 @@ export default function Obras() {
             <div>
               <span>Wattpad ID</span>
               <strong>
-                {previewImportacao.obra.wattpadId}
+                {previewImportacao.obra.wattpadId || "-"}
               </strong>
             </div>
           </div>
