@@ -19,6 +19,7 @@ export default function Obras() {
 
   const [linkImportacao, setLinkImportacao] = useState("");
   const [textoImportacaoManual, setTextoImportacaoManual] = useState("");
+
   const [previewImportacao, setPreviewImportacao] = useState(null);
 
   const [mensagem, setMensagem] = useState("");
@@ -62,11 +63,9 @@ export default function Obras() {
 
     setImportando(true);
     setMensagem("");
-    setPreviewImportacao(null);
 
     try {
       const dados = await importarObraDoWattpad(linkImportacao);
-
       setPreviewImportacao(dados);
 
       if (dados.aviso) {
@@ -122,7 +121,6 @@ export default function Obras() {
 
       await carregarObras();
       fecharModal();
-
       setMensagem("Obra salva com sucesso.");
     } catch (erro) {
       console.error(erro);
@@ -135,9 +133,7 @@ export default function Obras() {
   async function handleExcluir(obraId) {
     const confirmar = window.confirm("Deseja realmente excluir esta obra?");
 
-    if (!confirmar) {
-      return;
-    }
+    if (!confirmar) return;
 
     try {
       await excluirObra(obraId);
@@ -167,7 +163,9 @@ export default function Obras() {
       <div className="works-list">
         {obras.length === 0 ? (
           <div className="card">
-            <div className="empty-state">Nenhuma obra cadastrada.</div>
+            <div className="empty-state">
+              Nenhuma obra cadastrada.
+            </div>
           </div>
         ) : (
           obras.map((obra) => (
@@ -345,7 +343,7 @@ CAPÍTULOS:
                     onClick={salvarImportacao}
                     disabled={importando}
                   >
-                    {importando ? "Salvando..." : "Salvar obra"}
+                    Salvar obra
                   </button>
                 </div>
               </div>
