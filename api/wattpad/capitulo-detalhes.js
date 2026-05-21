@@ -1,17 +1,10 @@
 function extrairIdCapitulo(linkOuId = "") {
   const texto = String(linkOuId || "").trim();
-
   const matchWattpad = texto.match(/wattpad\.com\/(\d+)/i);
-
-  if (matchWattpad?.[1]) {
-    return matchWattpad[1];
-  }
+  if (matchWattpad?.[1]) return matchWattpad[1];
 
   const matchNumero = texto.match(/^(\d{5,})$/);
-
-  if (matchNumero?.[1]) {
-    return matchNumero[1];
-  }
+  if (matchNumero?.[1]) return matchNumero[1];
 
   return "";
 }
@@ -40,12 +33,7 @@ function limparHtml(texto = "") {
 
 function contarPalavras(html = "") {
   const texto = limparHtml(html);
-
-  if (!texto) {
-    return 0;
-  }
-
-  return texto.match(/\S+/g)?.length || 0;
+  return texto ? texto.match(/\S+/g)?.length || 0 : 0;
 }
 
 function extrairParagrafosDoHtml(html = "") {
@@ -72,20 +60,12 @@ function extrairParagrafosDoHtml(html = "") {
 }
 
 function classificarPosicao(indice, total) {
-  if (total <= 1) {
-    return "inicio";
-  }
+  if (total <= 1) return "inicio";
 
   const percentual = indice / Math.max(total - 1, 1);
 
-  if (percentual <= 0.33) {
-    return "inicio";
-  }
-
-  if (percentual <= 0.66) {
-    return "meio";
-  }
-
+  if (percentual <= 0.33) return "inicio";
+  if (percentual <= 0.66) return "meio";
   return "fim";
 }
 
@@ -120,9 +100,7 @@ async function fetchParagrafosApi(capituloId) {
     }
   });
 
-  if (!resposta.ok) {
-    return [];
-  }
+  if (!resposta.ok) return [];
 
   const dados = await resposta.json();
 
@@ -130,12 +108,9 @@ async function fetchParagrafosApi(capituloId) {
 }
 
 async function fetchComentariosParagrafo(capituloId, paragrafoId) {
-  if (!capituloId || !paragrafoId) {
-    return [];
-  }
+  if (!capituloId || !paragrafoId) return [];
 
   const resourceId = `${capituloId}_${paragrafoId}`;
-
   const url = `https://www.wattpad.com/v5/comments/namespaces/paragraphs/resources/${resourceId}/comments`;
 
   const resposta = await fetch(url, {
@@ -147,13 +122,36 @@ async function fetchComentariosParagrafo(capituloId, paragrafoId) {
     }
   });
 
-  if (!resposta.ok) {
-    return [];
-  }
+  if (!resposta.ok) return [];
 
   const dados = await resposta.json();
 
   return Array.isArray(dados.comments) ? dados.comments : [];
+}
+
+function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
+  const totalReal = paragrafosHtml.length;
+
+  const mapaApi = new Map();
+
+  paragrafosApi.forEach((paragrafoApi) => {
+    if (paragrafoApi.id) {
+      mapaApi.set(paragrafoApi.id, paragrafoApi);
+    }
+  });
+
+  return paragrafosHtml.map((paragrafoHtml, index) => {
+    const api = mapaApi.get(paragrafoHtml.id) || {};
+
+    return {
+      id: paragrafoHtml.id,
+      indice: index,
+      texto: paragrafoHtml.texto || "",
+      palavras: Number(paragrafoHtml.palavras || 0),
+      commentCount: Number(api.commentCount || 0),
+      posicao: classificarPosicao(index, totalReal)
+    };
+  });
 }
 
 async function buscarComentariosDoUsuario({
@@ -163,9 +161,7 @@ async function buscarComentariosDoUsuario({
 }) {
   const userNormalizado = normalizarUser(userLeitor);
 
-  if (!userNormalizado) {
-    return [];
-  }
+  if (!userNormalizado) return [];
 
   const paragrafosComComentarios = paragrafos.filter(
     (paragrafo) => Number(paragrafo.commentCount || 0) > 0 && paragrafo.id
@@ -179,12 +175,12 @@ async function buscarComentariosDoUsuario({
     comentarios.forEach((comentario) => {
       const nomeComentario = normalizarUser(comentario.user?.name || "");
 
-      if (nomeComentario !== userNormalizado) {
-        return;
-      }
+      if (nomeComentario !== userNormalizado) return;
 
       comentariosFiltrados.push({
-        id: comentario.commentId?.resourceId || `${paragrafo.id}-${comentariosFiltrados.length}`,
+        id:
+          comentario.commentId?.resourceId ||
+          `${paragrafo.id}-${comentariosFiltrados.length}`,
         texto: comentario.text || "",
         user: comentario.user?.name || "",
         avatar: comentario.user?.avatar || "",
@@ -199,28 +195,6 @@ async function buscarComentariosDoUsuario({
   }
 
   return comentariosFiltrados;
-}
-
-function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
-  const total = Math.max(paragrafosHtml.length, paragrafosApi.length);
-
-  const combinados = [];
-
-  for (let index = 0; index < total; index += 1) {
-    const html = paragrafosHtml[index] || {};
-    const api = paragrafosApi[index] || {};
-
-    combinados.push({
-      id: api.id || html.id || "",
-      indice: index,
-      texto: html.texto || "",
-      palavras: Number(html.palavras || 0),
-      commentCount: Number(api.commentCount || 0),
-      posicao: classificarPosicao(index, total)
-    });
-  }
-
-  return combinados;
 }
 
 function contarDistribuicaoComentarios(comentarios = []) {
@@ -241,7 +215,6 @@ export default async function handler(req, res) {
 
   try {
     const { capituloId, linkCapitulo, userLeitor } = req.body || {};
-
     const id = extrairIdCapitulo(capituloId || linkCapitulo);
 
     if (!id) {
