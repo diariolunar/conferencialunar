@@ -19,6 +19,16 @@ import { buscarDetalhesCapituloWattpad } from "../services/capitulosDetalhesServ
 
 const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
 
+function limparTituloCapitulo(texto = "") {
+  return String(texto || "")
+    .replace(/\s*[-–—]?\s*100%\s+conclu[ií]do.*$/i, "")
+    .replace(/\s*[-–—]?\s*conclu[ií]do.*$/i, "")
+    .replace(/\s*aproximadamente\s+\d+\s+horas?.*$/i, "")
+    .replace(/\s*h[aá]\s+\d+\s+horas?.*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function separarCapitulosEmLote(texto = "", ordemInicial = 1) {
   return String(texto || "")
     .split(/\r?\n/)
@@ -28,7 +38,7 @@ function separarCapitulosEmLote(texto = "", ordemInicial = 1) {
       const partes = linha.split("|").map((parte) => parte.trim());
 
       return {
-        titulo: partes[0] || `Capítulo ${ordemInicial + index}`,
+        titulo: limparTituloCapitulo(partes[0] || `Capítulo ${ordemInicial + index}`),
         link: partes[1] || "",
         tipo: TIPOS_CAPITULO.includes(partes[2]) ? partes[2] : "Normal",
         palavras: 0,
@@ -61,7 +71,6 @@ export default function ObraDetalhes() {
   const [link, setLink] = useState("");
   const [palavras, setPalavras] = useState("");
   const [paragrafos, setParagrafos] = useState("");
-  const [ordem, setOrdem] = useState("");
   const [tipo, setTipo] = useState("Normal");
 
   const [capitulosEmLote, setCapitulosEmLote] = useState("");
@@ -151,11 +160,11 @@ export default function ObraDetalhes() {
 
     try {
       await salvarCapituloDaObra(obraId, {
-        titulo: titulo.trim(),
+        titulo: limparTituloCapitulo(titulo),
         link: link.trim(),
         palavras: Number(palavras || 0),
         paragrafos: Number(paragrafos || 0),
-        ordem: Number(ordem || capitulos.length + 1),
+        ordem: capitulos.length + 1,
         tipo
       });
 
@@ -163,7 +172,6 @@ export default function ObraDetalhes() {
       setLink("");
       setPalavras("");
       setParagrafos("");
-      setOrdem("");
       setTipo("Normal");
 
       setMensagem("Capítulo salvo com sucesso.");
@@ -189,11 +197,7 @@ export default function ObraDetalhes() {
 
     try {
       const ordemInicial = capitulos.length + 1;
-      const capitulosNovos = separarCapitulosEmLote(
-        capitulosEmLote,
-        ordemInicial
-      );
-
+      const capitulosNovos = separarCapitulosEmLote(capitulosEmLote, ordemInicial);
       const resultado = await salvarCapitulosDaObra(obraId, capitulosNovos);
 
       setCapitulosEmLote("");
@@ -478,7 +482,7 @@ export default function ObraDetalhes() {
               type="text"
               value={titulo}
               onChange={(evento) => setTitulo(evento.target.value)}
-              placeholder="Ex: Especial - As Grandes Casas de Aurealis"
+              placeholder="Ex: Capítulo 14 - Durchbruch"
             />
           </label>
 
@@ -493,17 +497,6 @@ export default function ObraDetalhes() {
           </label>
 
           <div className="form-row-3">
-            <label>
-              Ordem interna
-              <input
-                type="number"
-                min="1"
-                value={ordem}
-                onChange={(evento) => setOrdem(evento.target.value)}
-                placeholder={String(capitulos.length + 1)}
-              />
-            </label>
-
             <label>
               Palavras
               <input
@@ -525,21 +518,21 @@ export default function ObraDetalhes() {
                 placeholder="0"
               />
             </label>
-          </div>
 
-          <label>
-            Tipo padrão do capítulo
-            <select
-              value={tipo}
-              onChange={(evento) => setTipo(evento.target.value)}
-            >
-              {TIPOS_CAPITULO.map((tipoCapitulo) => (
-                <option key={tipoCapitulo} value={tipoCapitulo}>
-                  {tipoCapitulo}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label>
+              Tipo padrão do capítulo
+              <select
+                value={tipo}
+                onChange={(evento) => setTipo(evento.target.value)}
+              >
+                {TIPOS_CAPITULO.map((tipoCapitulo) => (
+                  <option key={tipoCapitulo} value={tipoCapitulo}>
+                    {tipoCapitulo}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
           <button
             type="submit"
@@ -602,104 +595,66 @@ export default function ObraDetalhes() {
             Nenhum capítulo cadastrado para esta obra.
           </div>
         ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>Ordem</th>
-                  <th>Título real</th>
-                  <th>Tipo</th>
-                  <th>Palavras</th>
-                  <th>Parágrafos</th>
-                  <th>Comentários</th>
-                  <th>Distribuição</th>
-                  <th>Link</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
+          <div className="chapter-clean-list">
+            {capitulos.map((capitulo) => (
+              <div className="chapter-clean-item" key={capitulo.id}>
+                <div className="chapter-clean-main">
+                  <strong>{limparTituloCapitulo(capitulo.titulo)}</strong>
 
-              <tbody>
-                {capitulos.map((capitulo) => (
-                  <tr key={capitulo.id}>
-                    <td>{capitulo.ordem || "-"}</td>
+                  <span>
+                    {capitulo.palavras || 0} palavra(s) •{" "}
+                    {capitulo.paragrafos || 0} parágrafo(s) •{" "}
+                    {capitulo.comentariosTotais || 0} comentário(s)
+                  </span>
+                </div>
 
-                    <td>{capitulo.titulo}</td>
+                <div className="chapter-clean-type">
+                  <select
+                    value={capitulo.tipo || "Normal"}
+                    onChange={(evento) =>
+                      handleAlterarTipoCapitulo(capitulo, evento.target.value)
+                    }
+                    disabled={atualizandoTodos || alterandoTipoId === capitulo.id}
+                  >
+                    {TIPOS_CAPITULO.map((tipoCapitulo) => (
+                      <option key={tipoCapitulo} value={tipoCapitulo}>
+                        {tipoCapitulo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                    <td>
-                      <select
-                        value={capitulo.tipo || "Normal"}
-                        onChange={(evento) =>
-                          handleAlterarTipoCapitulo(
-                            capitulo,
-                            evento.target.value
-                          )
-                        }
-                        disabled={
-                          atualizandoTodos ||
-                          alterandoTipoId === capitulo.id
-                        }
-                      >
-                        {TIPOS_CAPITULO.map((tipoCapitulo) => (
-                          <option key={tipoCapitulo} value={tipoCapitulo}>
-                            {tipoCapitulo}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
+                <div className="chapter-clean-actions">
+                  {capitulo.link && (
+                    <a href={capitulo.link} target="_blank" rel="noreferrer">
+                      Abrir
+                    </a>
+                  )}
 
-                    <td>{capitulo.palavras || 0}</td>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => atualizarDetalhesDeUmCapitulo(capitulo)}
+                    disabled={
+                      atualizandoTodos || atualizandoCapituloId === capitulo.id
+                    }
+                  >
+                    {atualizandoCapituloId === capitulo.id
+                      ? "Buscando..."
+                      : "Buscar dados"}
+                  </button>
 
-                    <td>{capitulo.paragrafos || 0}</td>
-
-                    <td>{capitulo.comentariosTotais || 0}</td>
-
-                    <td>
-                      I: {capitulo.distribuicaoComentarios?.inicio || 0} / M:{" "}
-                      {capitulo.distribuicaoComentarios?.meio || 0} / F:{" "}
-                      {capitulo.distribuicaoComentarios?.fim || 0} / G:{" "}
-                      {capitulo.distribuicaoComentarios?.geral || 0}
-                    </td>
-
-                    <td>
-                      {capitulo.link ? (
-                        <a href={capitulo.link} target="_blank" rel="noreferrer">
-                          Abrir
-                        </a>
-                      ) : (
-                        "Sem link"
-                      )}
-                    </td>
-
-                    <td>
-                      <div className="table-actions">
-                        <button
-                          type="button"
-                          className="button-secondary"
-                          onClick={() => atualizarDetalhesDeUmCapitulo(capitulo)}
-                          disabled={
-                            atualizandoTodos ||
-                            atualizandoCapituloId === capitulo.id
-                          }
-                        >
-                          {atualizandoCapituloId === capitulo.id
-                            ? "Buscando..."
-                            : "Buscar dados"}
-                        </button>
-
-                        <button
-                          type="button"
-                          className="button-danger"
-                          onClick={() => handleExcluirCapitulo(capitulo.id)}
-                          disabled={atualizandoTodos}
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  <button
+                    type="button"
+                    className="button-danger"
+                    onClick={() => handleExcluirCapitulo(capitulo.id)}
+                    disabled={atualizandoTodos}
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
