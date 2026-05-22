@@ -161,10 +161,7 @@ function ehMinhaObra(linha = "") {
 function ehAdmOuFinal(linha = "") {
   const normalizada = n(linha);
 
-  return (
-    normalizada.includes("adm") ||
-    linhaEhDecorativaOuFinal(linha)
-  );
+  return normalizada.includes("adm") || linhaEhDecorativaOuFinal(linha);
 }
 
 function removerCampoObra(linha = "") {
@@ -238,7 +235,8 @@ function valorIndicaTudo(valor = "") {
   return (
     normalizada.includes("li tudo") ||
     normalizada.includes("ja li tudo") ||
-    normalizada.includes("tudo")
+    normalizada === "tudo" ||
+    normalizada.includes(" tudo ")
   );
 }
 
@@ -316,7 +314,7 @@ function extrairBlocosObras(linhas = []) {
 
       if (valorIndicaMinhaObra(valor)) {
         blocoAtual.minhaObra = true;
-        blocoAtual.capitulos.push("MINHA_OBRA");
+        blocoAtual.capitulos = ["MINHA_OBRA"];
         lendoCapitulos = false;
         continue;
       }
@@ -345,6 +343,11 @@ function extrairBlocosObras(linhas = []) {
         removerCampo(linha, ["minha obra", "obra propria", "obra própria"]);
 
       blocoAtual.minhaObra = valorIndicaSim(valor);
+
+      if (blocoAtual.minhaObra && blocoAtual.capitulos.length === 0) {
+        blocoAtual.capitulos = ["MINHA_OBRA"];
+      }
+
       lendoCapitulos = false;
       continue;
     }
@@ -359,7 +362,7 @@ function extrairBlocosObras(linhas = []) {
 
       if (valorIndicaMinhaObra(capitulo)) {
         blocoAtual.minhaObra = true;
-        blocoAtual.capitulos.push("MINHA_OBRA");
+        blocoAtual.capitulos = ["MINHA_OBRA"];
         lendoCapitulos = false;
         continue;
       }
@@ -376,21 +379,11 @@ function extrairBlocosObras(linhas = []) {
     .map((bloco) => ({
       ...bloco,
       obra: limparValor(bloco.obra),
-      capitulos: removerDuplicados(bloco.capitulos)
+      capitulos: bloco.minhaObra
+        ? ["MINHA_OBRA"]
+        : removerDuplicados(bloco.capitulos)
     }))
     .filter((bloco) => bloco.obra && !linhaEhDecorativaOuFinal(bloco.obra));
-}
-
-function detectarMinhaObraGlobal(linhas = []) {
-  const linha = linhas.find((item) => ehMinhaObra(item));
-
-  if (!linha) return false;
-
-  const valor =
-    pegarDepoisDosDoisPontos(linha) ||
-    removerCampo(linha, ["minha obra", "obra propria", "obra própria"]);
-
-  return valorIndicaSim(valor);
 }
 
 export function interpretarFicha(textoFicha = "") {
@@ -404,8 +397,6 @@ export function interpretarFicha(textoFicha = "") {
   const nomeLeitor = capturarNome(linhas);
   const userLeitor = capturarUser(linhas, textoNormalizado);
   const adm = capturarAdm(linhas);
-
-  const minhaObraGlobal = detectarMinhaObraGlobal(linhas);
 
   const obraLida = primeiroBloco?.obra || "";
   const capitulosInformados = primeiroBloco?.capitulos || [];
@@ -443,11 +434,11 @@ export function interpretarFicha(textoFicha = "") {
     adm,
     obraLida,
     capitulosInformados,
-    minhaObra: minhaObraGlobal || blocosObras.some((bloco) => bloco.minhaObra),
+    minhaObra: false,
     feedbackOferecido,
     blocosObras: blocosObras.map((bloco) => ({
       ...bloco,
-      minhaObra: minhaObraGlobal || bloco.minhaObra
+      minhaObra: Boolean(bloco.minhaObra)
     })),
     avisos
   };
