@@ -6,13 +6,20 @@ import {
   salvarOuMesclarObra
 } from "../services/obrasService.js";
 
+import { salvarCapitulosDaObra } from "../services/capitulosService.js";
+import { buscarObraWattpad } from "../services/wattpadService.js";
+
 export default function Obras() {
   const [obras, setObras] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  const [importando, setImportando] = useState(false);
   const [mensagem, setMensagem] = useState("");
 
   const [modalAberto, setModalAberto] = useState(false);
+  const [modoManual, setModoManual] = useState(false);
+
+  const [linkWattpad, setLinkWattpad] = useState("");
 
   const [formObra, setFormObra] = useState({
     titulo: "",
@@ -49,6 +56,8 @@ export default function Obras() {
   }, []);
 
   function abrirNovaObra() {
+    setLinkWattpad("");
+    setModoManual(false);
     setFormObra({
       titulo: "",
       autor: "",
@@ -65,7 +74,57 @@ export default function Obras() {
     setModalAberto(false);
   }
 
-  async function salvarObraAtual(evento) {
+  async function importarObraPeloWattpad(evento) {
+    evento.preventDefault();
+
+    if (!linkWattpad.trim()) {
+      setMensagem("Cole o link ou ID da obra do Wattpad.");
+      return;
+    }
+
+    setImportando(true);
+    setMensagem("");
+
+    try {
+      const obraWattpad = await buscarObraWattpad({
+        linkObra: linkWattpad
+      });
+
+      const resultado = await salvarOuMesclarObra({
+        titulo: obraWattpad.titulo,
+        autor: obraWattpad.autor,
+        userAutor: obraWattpad.userAutor,
+        link: obraWattpad.link,
+        capa: obraWattpad.capa,
+        descricao: obraWattpad.descricao
+      });
+
+      if (obraWattpad.capitulos?.length > 0) {
+        await salvarCapitulosDaObra(resultado.id, obraWattpad.capitulos);
+      }
+
+      if (resultado.mesclada) {
+        setMensagem(
+          `Obra já existente encontrada. Informações e capítulos foram mesclados em "${resultado.obraExistente?.titulo}".`
+        );
+      } else {
+        setMensagem("Obra importada do Wattpad com sucesso.");
+      }
+
+      setModalAberto(false);
+      await carregarObras();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem(
+        erro.message ||
+          "Erro ao importar obra do Wattpad. Você pode usar o cadastro manual."
+      );
+    } finally {
+      setImportando(false);
+    }
+  }
+
+  async function salvarObraManual(evento) {
     evento.preventDefault();
 
     if (!formObra.titulo.trim()) {
@@ -84,7 +143,7 @@ export default function Obras() {
           `Obra já existente encontrada. As informações foram mescladas em "${resultado.obraExistente?.titulo}".`
         );
       } else {
-        setMensagem("Obra cadastrada com sucesso.");
+        setMensagem("Obra cadastrada manualmente com sucesso.");
       }
 
       setModalAberto(false);
@@ -112,7 +171,7 @@ export default function Obras() {
       <div className="page-title page-title-row">
         <div>
           <h2>Obras</h2>
-          <p>Gerencie as obras utilizadas nas conferências.</p>
+          <p>Importe obras do Wattpad e gerencie os capítulos cadastrados.</p>
         </div>
 
         <button type="button" className="button-primary" onClick={abrirNovaObra}>
@@ -165,114 +224,179 @@ export default function Obras() {
         <div className="modal-backdrop">
           <div className="modal-card">
             <div className="modal-header">
-              <h3>Nova obra</h3>
+              <div>
+                <h3>Nova obra</h3>
+                <p>Use o link do Wattpad como cadastro principal.</p>
+              </div>
 
               <button type="button" onClick={fecharModal}>
                 ×
               </button>
             </div>
 
-            <form className="form-grid" onSubmit={salvarObraAtual}>
-              <label>
-                Título
-                <input
-                  type="text"
-                  value={formObra.titulo}
-                  onChange={(evento) =>
-                    setFormObra((atual) => ({
-                      ...atual,
-                      titulo: evento.target.value
-                    }))
-                  }
-                />
-              </label>
-
-              <div className="form-row-2">
+            {!modoManual ? (
+              <form className="form-grid" onSubmit={importarObraPeloWattpad}>
                 <label>
-                  Autor
+                  Link ou ID da obra no Wattpad
                   <input
                     type="text"
-                    value={formObra.autor}
+                    value={linkWattpad}
+                    onChange={(evento) => setLinkWattpad(evento.target.value)}
+                    placeholder="https://www.wattpad.com/story/..."
+                  />
+                </label>
+
+                <div className="notice-card">
+                  O sistema vai buscar título, autor, capa, descrição e capítulos
+                  automaticamente.
+                </div>
+
+                <div className="actions-row">
+                  <button
+                    type="submit"
+                    className="button-primary"
+                    disabled={importando}
+                  >
+                    {importando ? "Importando..." : "Importar do Wattpad"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => setModoManual(true)}
+                  >
+                    Cadastro manual
+                  </button>
+
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={fecharModal}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form className="form-grid" onSubmit={salvarObraManual}>
+                <div className="notice-card">
+                  Cadastro manual deve ser usado apenas quando o Wattpad falhar
+                  ou quando você quiser complementar dados.
+                </div>
+
+                <label>
+                  Título
+                  <input
+                    type="text"
+                    value={formObra.titulo}
                     onChange={(evento) =>
                       setFormObra((atual) => ({
                         ...atual,
-                        autor: evento.target.value
+                        titulo: evento.target.value
+                      }))
+                    }
+                  />
+                </label>
+
+                <div className="form-row-2">
+                  <label>
+                    Autor
+                    <input
+                      type="text"
+                      value={formObra.autor}
+                      onChange={(evento) =>
+                        setFormObra((atual) => ({
+                          ...atual,
+                          autor: evento.target.value
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    User do autor
+                    <input
+                      type="text"
+                      value={formObra.userAutor}
+                      onChange={(evento) =>
+                        setFormObra((atual) => ({
+                          ...atual,
+                          userAutor: evento.target.value
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+
+                <label>
+                  Link da obra
+                  <input
+                    type="url"
+                    value={formObra.link}
+                    onChange={(evento) =>
+                      setFormObra((atual) => ({
+                        ...atual,
+                        link: evento.target.value
                       }))
                     }
                   />
                 </label>
 
                 <label>
-                  User do autor
+                  Link da capa
                   <input
-                    type="text"
-                    value={formObra.userAutor}
+                    type="url"
+                    value={formObra.capa}
                     onChange={(evento) =>
                       setFormObra((atual) => ({
                         ...atual,
-                        userAutor: evento.target.value
+                        capa: evento.target.value
                       }))
                     }
                   />
                 </label>
-              </div>
 
-              <label>
-                Link da obra
-                <input
-                  type="url"
-                  value={formObra.link}
-                  onChange={(evento) =>
-                    setFormObra((atual) => ({
-                      ...atual,
-                      link: evento.target.value
-                    }))
-                  }
-                />
-              </label>
+                <label>
+                  Descrição
+                  <textarea
+                    rows="5"
+                    value={formObra.descricao}
+                    onChange={(evento) =>
+                      setFormObra((atual) => ({
+                        ...atual,
+                        descricao: evento.target.value
+                      }))
+                    }
+                  />
+                </label>
 
-              <label>
-                Link da capa
-                <input
-                  type="url"
-                  value={formObra.capa}
-                  onChange={(evento) =>
-                    setFormObra((atual) => ({
-                      ...atual,
-                      capa: evento.target.value
-                    }))
-                  }
-                />
-              </label>
+                <div className="actions-row">
+                  <button
+                    type="submit"
+                    className="button-primary"
+                    disabled={salvando}
+                  >
+                    {salvando ? "Salvando..." : "Salvar manualmente"}
+                  </button>
 
-              <label>
-                Descrição
-                <textarea
-                  rows="5"
-                  value={formObra.descricao}
-                  onChange={(evento) =>
-                    setFormObra((atual) => ({
-                      ...atual,
-                      descricao: evento.target.value
-                    }))
-                  }
-                />
-              </label>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => setModoManual(false)}
+                  >
+                    Voltar para importação
+                  </button>
 
-              <div className="actions-row">
-                <button type="submit" className="button-primary" disabled={salvando}>
-                  {salvando ? "Salvando..." : "Salvar"}
-                </button>
-
-                <button
-                  type="button"
-                  className="button-secondary"
-                  onClick={fecharModal}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={fecharModal}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
