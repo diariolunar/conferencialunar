@@ -19,6 +19,76 @@ import { salvarConferenciaNoHistorico } from "../services/historicoService.js";
 
 const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
 
+function simplificarTextoBusca(texto = "") {
+  return normalizarTexto(texto)
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\b0+(\d+)\b/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizarBusca(texto = "") {
+  return simplificarTextoBusca(texto)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function calcularSimilaridadeBusca(textoA = "", textoB = "") {
+  const a = simplificarTextoBusca(textoA);
+  const b = simplificarTextoBusca(textoB);
+
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+
+  if (a.includes(b) || b.includes(a)) return 0.9;
+
+  const tokensA = new Set(tokenizarBusca(a));
+  const tokensB = new Set(tokenizarBusca(b));
+
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+
+  let intersecao = 0;
+
+  tokensA.forEach((token) => {
+    if (tokensB.has(token)) intersecao += 1;
+  });
+
+  const uniao = new Set([...tokensA, ...tokensB]).size;
+
+  return intersecao / uniao;
+}
+
+function pontuarObra(obra, tituloBusca = "") {
+  const tituloObra = obra.titulo || "";
+  const busca = simplificarTextoBusca(tituloBusca);
+  const titulo = simplificarTextoBusca(tituloObra);
+
+  if (!busca || !titulo) return 0;
+  if (busca === titulo) return 100;
+
+  let pontos = 0;
+
+  if (titulo.includes(busca) || busca.includes(titulo)) {
+    pontos += 70;
+  }
+
+  pontos += calcularSimilaridadeBusca(tituloObra, tituloBusca) * 60;
+
+  const autor = obra.autor || "";
+  const userAutor = obra.userAutor || "";
+
+  if (autor) {
+    pontos += calcularSimilaridadeBusca(autor, tituloBusca) * 10;
+  }
+
+  if (userAutor) {
+    pontos += calcularSimilaridadeBusca(userAutor, tituloBusca) * 10;
+  }
+
+  return pontos;
+}
+
 export default function Conferencia() {
   const [diaSemana, setDiaSemana] = useState("");
   const [textoFicha, setTextoFicha] = useState("");
@@ -133,26 +203,26 @@ export default function Conferencia() {
   }
 
   function encontrarObraPorTitulo(titulo = "") {
-    const tituloNormalizado = normalizarTexto(titulo);
+    const tituloNormalizado = simplificarTextoBusca(titulo);
 
     if (!tituloNormalizado) return null;
 
-    const exata = obras.find(
-      (obra) => normalizarTexto(obra.titulo) === tituloNormalizado
-    );
+    const candidatos = obras
+      .map((obra) => ({
+        obra,
+        pontos: pontuarObra(obra, titulo)
+      }))
+      .sort((a, b) => b.pontos - a.pontos);
 
-    if (exata) return exata;
+    const melhor = candidatos[0];
 
-    return (
-      obras.find((obra) => {
-        const obraNormalizada = normalizarTexto(obra.titulo);
+    if (!melhor) return null;
 
-        return (
-          obraNormalizada.includes(tituloNormalizado) ||
-          tituloNormalizado.includes(obraNormalizada)
-        );
-      }) || null
-    );
+    if (melhor.pontos >= 45) {
+      return melhor.obra;
+    }
+
+    return null;
   }
 
   function montarLeitura({

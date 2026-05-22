@@ -15,50 +15,117 @@ import { normalizarTexto } from "../utils/normalizarTexto.js";
 const OBRAS_COLLECTION = "obras";
 const CAPITULOS_COLLECTION = "capitulos";
 
+function simplificarTexto(texto = "") {
+  return normalizarTexto(texto)
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\b0+(\d+)\b/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function extrairNumero(texto = "") {
-  const normalizado = normalizarTexto(texto);
+  const normalizado = simplificarTexto(texto);
 
   const matchCapitulo = normalizado.match(
-    /(?:capitulo|cap|parte|episodio)\s*(\d+)/
+    /(?:capitulo|cap|parte|episodio|ep)\s*(\d+)/
   );
 
   if (matchCapitulo?.[1]) return Number(matchCapitulo[1]);
 
-  const matchNumeroSolto = normalizado.match(/^(\d+)$/);
+  const matchNumeroSolto = normalizado.match(/^0*(\d+)$/);
 
   if (matchNumeroSolto?.[1]) return Number(matchNumeroSolto[1]);
+
+  const matchPrimeiroNumero = normalizado.match(/\b0*(\d+)\b/);
+
+  if (matchPrimeiroNumero?.[1]) return Number(matchPrimeiroNumero[1]);
 
   return null;
 }
 
 function limparTituloParaComparacao(texto = "") {
-  return normalizarTexto(texto)
-    .replace(/^(capitulo|cap|parte|episodio)\s*\d+\s*/i, "")
-    .replace(/^\d+\s*[-–—:.]\s*/, "")
+  return simplificarTexto(texto)
+    .replace(/^(capitulo|cap|parte|episodio|ep)\s*\d+\s*/i, "")
+    .replace(/^\d+\s*[-–—:.]?\s*/, "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+function tokenizar(texto = "") {
+  return simplificarTexto(texto)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
 function calcularSimilaridade(textoA = "", textoB = "") {
-  const palavrasA = new Set(
-    limparTituloParaComparacao(textoA).split(" ").filter(Boolean)
-  );
+  const a = simplificarTexto(textoA);
+  const b = simplificarTexto(textoB);
 
-  const palavrasB = new Set(
-    limparTituloParaComparacao(textoB).split(" ").filter(Boolean)
-  );
+  if (!a || !b) return 0;
+  if (a === b) return 1;
 
-  if (palavrasA.size === 0 || palavrasB.size === 0) return 0;
+  if (a.includes(b) || b.includes(a)) return 0.9;
+
+  const tokensA = new Set(tokenizar(a));
+  const tokensB = new Set(tokenizar(b));
+
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
 
   let intersecao = 0;
 
-  palavrasA.forEach((palavra) => {
-    if (palavrasB.has(palavra)) intersecao += 1;
+  tokensA.forEach((token) => {
+    if (tokensB.has(token)) intersecao += 1;
   });
 
-  const total = new Set([...palavrasA, ...palavrasB]).size;
+  const uniao = new Set([...tokensA, ...tokensB]).size;
 
-  return intersecao / total;
+  return intersecao / uniao;
+}
+
+function pontuarCapitulo(capitulo, textoBusca = "") {
+  const titulo = capitulo.titulo || "";
+  const buscaNormalizada = simplificarTexto(textoBusca);
+  const tituloNormalizado = simplificarTexto(titulo);
+
+  if (!buscaNormalizada || !tituloNormalizado) return 0;
+
+  if (buscaNormalizada === tituloNormalizado) return 100;
+
+  const numeroBusca = extrairNumero(textoBusca);
+  const numeroTitulo = extrairNumero(titulo);
+  const ordem = Number(capitulo.ordem || 0);
+
+  let pontos = 0;
+
+  if (numeroBusca) {
+    if (ordem === numeroBusca) pontos += 80;
+    if (numeroTitulo === numeroBusca) pontos += 75;
+  }
+
+  if (
+    tituloNormalizado.includes(buscaNormalizada) ||
+    buscaNormalizada.includes(tituloNormalizado)
+  ) {
+    pontos += 60;
+  }
+
+  const tituloLimpo = limparTituloParaComparacao(titulo);
+  const buscaLimpa = limparTituloParaComparacao(textoBusca);
+
+  if (tituloLimpo && buscaLimpa) {
+    if (tituloLimpo === buscaLimpa) pontos += 55;
+
+    if (tituloLimpo.includes(buscaLimpa) || buscaLimpa.includes(tituloLimpo)) {
+      pontos += 45;
+    }
+
+    pontos += calcularSimilaridade(tituloLimpo, buscaLimpa) * 40;
+  }
+
+  pontos += calcularSimilaridade(titulo, textoBusca) * 30;
+
+  return pontos;
 }
 
 function gerarIdCapitulo(capitulo, index = 0) {
@@ -98,7 +165,8 @@ export async function salvarCapituloDaObra(obraId, capitulo, index = 0) {
       distribuicaoComentarios: capitulo.distribuicaoComentarios || {
         inicio: 0,
         meio: 0,
-        fim: 0
+        fim: 0,
+        geral: 0
       },
       ordem: Number(capitulo.ordem || index + 1),
       tipo: capitulo.tipo || "Normal",
@@ -157,11 +225,16 @@ export async function atualizarDetalhesCapitulo(obraId, capituloId, detalhes) {
     wattpadId: detalhes.capituloId || "",
     palavras: Number(detalhes.palavras || 0),
     paragrafos: Number(detalhes.paragrafos || 0),
-    comentariosTotais: Number(detalhes.comentariosTotais || 0),
+    comentariosTotais: Number(
+      detalhes.comentariosTotaisCapitulo ||
+        detalhes.comentariosTotais ||
+        0
+    ),
     distribuicaoComentarios: detalhes.distribuicaoComentarios || {
       inicio: 0,
       meio: 0,
-      fim: 0
+      fim: 0,
+      geral: 0
     },
     paragrafosDetalhados: detalhes.paragrafosDetalhados || []
   });
@@ -184,71 +257,24 @@ export async function excluirCapitulo(obraId, capituloId) {
 }
 
 export function encontrarCapituloPorTexto(capitulos = [], texto = "") {
-  const textoNormalizado = normalizarTexto(texto);
-  const textoLimpo = limparTituloParaComparacao(texto);
-  const numero = extrairNumero(texto);
+  const textoNormalizado = simplificarTexto(texto);
 
   if (!textoNormalizado) return null;
-
-  if (numero) {
-    const porOrdem = capitulos.find(
-      (capitulo) => Number(capitulo.ordem) === Number(numero)
-    );
-
-    if (porOrdem) return porOrdem;
-
-    const porTituloComNumero = capitulos.find((capitulo) => {
-      const titulo = normalizarTexto(capitulo.titulo);
-
-      return (
-        titulo.includes(`capitulo ${numero}`) ||
-        titulo.includes(`cap ${numero}`) ||
-        titulo.includes(`parte ${numero}`) ||
-        titulo.includes(`episodio ${numero}`) ||
-        titulo.startsWith(`${numero} `) ||
-        titulo.startsWith(`${numero}-`) ||
-        titulo.startsWith(`${numero}.`)
-      );
-    });
-
-    if (porTituloComNumero) return porTituloComNumero;
-  }
-
-  const porTituloExato = capitulos.find(
-    (capitulo) => normalizarTexto(capitulo.titulo) === textoNormalizado
-  );
-
-  if (porTituloExato) return porTituloExato;
-
-  const porTituloLimpoExato = capitulos.find(
-    (capitulo) => limparTituloParaComparacao(capitulo.titulo) === textoLimpo
-  );
-
-  if (porTituloLimpoExato) return porTituloLimpoExato;
-
-  const porParcial = capitulos.find((capitulo) => {
-    const titulo = normalizarTexto(capitulo.titulo);
-    const tituloLimpo = limparTituloParaComparacao(capitulo.titulo);
-
-    return (
-      titulo.includes(textoNormalizado) ||
-      textoNormalizado.includes(titulo) ||
-      tituloLimpo.includes(textoLimpo) ||
-      textoLimpo.includes(tituloLimpo)
-    );
-  });
-
-  if (porParcial) return porParcial;
 
   const candidatos = capitulos
     .map((capitulo) => ({
       capitulo,
-      similaridade: calcularSimilaridade(texto, capitulo.titulo)
+      pontos: pontuarCapitulo(capitulo, texto)
     }))
-    .filter((item) => item.similaridade >= 0.5)
-    .sort((a, b) => b.similaridade - a.similaridade);
+    .sort((a, b) => b.pontos - a.pontos);
 
-  if (candidatos.length > 0) return candidatos[0].capitulo;
+  const melhor = candidatos[0];
+
+  if (!melhor) return null;
+
+  if (melhor.pontos >= 45) {
+    return melhor.capitulo;
+  }
 
   return null;
 }
