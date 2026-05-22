@@ -7,7 +7,6 @@ const links = [
   { to: "/obras", label: "Obras" },
   { to: "/subs", label: "Subs" },
   { to: "/regras", label: "Regras" },
-  { to: "/membros", label: "Membros" },
   { to: "/configuracoes", label: "Configurações" }
 ];
 

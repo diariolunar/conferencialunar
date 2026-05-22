@@ -7,7 +7,6 @@ import Obras from "./pages/Obras.jsx";
 import ObraDetalhes from "./pages/ObraDetalhes.jsx";
 import Subs from "./pages/Subs.jsx";
 import Regras from "./pages/Regras.jsx";
-import Membros from "./pages/Membros.jsx";
 import Conferencia from "./pages/Conferencia.jsx";
 import Historico from "./pages/Historico.jsx";
 import Configuracoes from "./pages/Configuracoes.jsx";
@@ -26,7 +25,6 @@ export default function App() {
           <Route path="/obras/:obraId" element={<ObraDetalhes />} />
           <Route path="/subs" element={<Subs />} />
           <Route path="/regras" element={<Regras />} />
-          <Route path="/membros" element={<Membros />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
