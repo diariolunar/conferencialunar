@@ -621,15 +621,7 @@ export default function Conferencia() {
         resumo
       });
 
-      setMensagem("Conferência salva com sucesso.");
-
-      setDiaSemana("");
-      setTextoFicha("");
-      setPlano(null);
-      setResultadoVerificacao([]);
-      setFichaAberta(true);
-      setInterpretacaoAberta(true);
-      setPlanoAberto(true);
+      window.location.reload();
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao salvar conferência.");
