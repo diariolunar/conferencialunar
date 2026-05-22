@@ -45,6 +45,11 @@ export async function listarHistoricoConferencias() {
   }));
 }
 
+/* Compatibilidade com arquivos antigos, como Dashboard.jsx */
+export async function listarHistorico() {
+  return listarHistoricoConferencias();
+}
+
 export function agruparHistoricoPorSubDiaMembro(historico = []) {
   const grupos = {};
 
@@ -54,17 +59,9 @@ export function agruparHistoricoPorSubDiaMembro(historico = []) {
     const membro =
       item.nomeLeitor || item.userLeitor || "Membro não informado";
 
-    if (!grupos[sub]) {
-      grupos[sub] = {};
-    }
-
-    if (!grupos[sub][dia]) {
-      grupos[sub][dia] = {};
-    }
-
-    if (!grupos[sub][dia][membro]) {
-      grupos[sub][dia][membro] = [];
-    }
+    if (!grupos[sub]) grupos[sub] = {};
+    if (!grupos[sub][dia]) grupos[sub][dia] = {};
+    if (!grupos[sub][dia][membro]) grupos[sub][dia][membro] = [];
 
     grupos[sub][dia][membro].push(item);
   });
@@ -74,7 +71,6 @@ export function agruparHistoricoPorSubDiaMembro(historico = []) {
 
 export function calcularResumoHistorico(lista = []) {
   const totalConferencias = lista.length;
-
   const capitulos = lista.flatMap((item) => item.capitulos || []);
 
   const totalCapitulos = capitulos.length;
