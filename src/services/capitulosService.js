@@ -23,6 +23,100 @@ function simplificarTexto(texto = "") {
     .trim();
 }
 
+function tokenizar(texto = "") {
+  return simplificarTexto(texto)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function distanciaLevenshtein(a = "", b = "") {
+  const textoA = simplificarTexto(a);
+  const textoB = simplificarTexto(b);
+
+  if (textoA === textoB) return 0;
+  if (!textoA) return textoB.length;
+  if (!textoB) return textoA.length;
+
+  const matriz = Array.from({ length: textoA.length + 1 }, (_, i) => [i]);
+
+  for (let j = 1; j <= textoB.length; j += 1) {
+    matriz[0][j] = j;
+  }
+
+  for (let i = 1; i <= textoA.length; i += 1) {
+    for (let j = 1; j <= textoB.length; j += 1) {
+      const custo = textoA[i - 1] === textoB[j - 1] ? 0 : 1;
+
+      matriz[i][j] = Math.min(
+        matriz[i - 1][j] + 1,
+        matriz[i][j - 1] + 1,
+        matriz[i - 1][j - 1] + custo
+      );
+    }
+  }
+
+  return matriz[textoA.length][textoB.length];
+}
+
+function similaridadeAproximada(a = "", b = "") {
+  const textoA = simplificarTexto(a);
+  const textoB = simplificarTexto(b);
+
+  if (!textoA || !textoB) return 0;
+  if (textoA === textoB) return 1;
+
+  const maior = Math.max(textoA.length, textoB.length);
+
+  if (maior === 0) return 0;
+
+  const distancia = distanciaLevenshtein(textoA, textoB);
+
+  return Math.max(0, 1 - distancia / maior);
+}
+
+function calcularSimilaridadeTokens(textoA = "", textoB = "") {
+  const a = simplificarTexto(textoA);
+  const b = simplificarTexto(textoB);
+
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.includes(b) || b.includes(a)) return 0.9;
+
+  const tokensA = new Set(tokenizar(a));
+  const tokensB = new Set(tokenizar(b));
+
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+
+  let intersecao = 0;
+
+  tokensA.forEach((tokenA) => {
+    if (tokensB.has(tokenA)) {
+      intersecao += 1;
+      return;
+    }
+
+    const parecido = [...tokensB].some(
+      (tokenB) => similaridadeAproximada(tokenA, tokenB) >= 0.78
+    );
+
+    if (parecido) {
+      intersecao += 1;
+    }
+  });
+
+  const uniao = new Set([...tokensA, ...tokensB]).size;
+
+  return intersecao / uniao;
+}
+
+function calcularSimilaridadeGeral(textoA = "", textoB = "") {
+  const tokens = calcularSimilaridadeTokens(textoA, textoB);
+  const aproximada = similaridadeAproximada(textoA, textoB);
+
+  return Math.max(tokens, aproximada);
+}
+
 function extrairNumero(texto = "") {
   const normalizado = simplificarTexto(texto);
 
@@ -51,45 +145,12 @@ function limparTituloParaComparacao(texto = "") {
     .trim();
 }
 
-function tokenizar(texto = "") {
-  return simplificarTexto(texto)
-    .split(" ")
-    .map((token) => token.trim())
-    .filter(Boolean);
-}
-
-function calcularSimilaridade(textoA = "", textoB = "") {
-  const a = simplificarTexto(textoA);
-  const b = simplificarTexto(textoB);
-
-  if (!a || !b) return 0;
-  if (a === b) return 1;
-
-  if (a.includes(b) || b.includes(a)) return 0.9;
-
-  const tokensA = new Set(tokenizar(a));
-  const tokensB = new Set(tokenizar(b));
-
-  if (tokensA.size === 0 || tokensB.size === 0) return 0;
-
-  let intersecao = 0;
-
-  tokensA.forEach((token) => {
-    if (tokensB.has(token)) intersecao += 1;
-  });
-
-  const uniao = new Set([...tokensA, ...tokensB]).size;
-
-  return intersecao / uniao;
-}
-
 function pontuarCapitulo(capitulo, textoBusca = "") {
   const titulo = capitulo.titulo || "";
   const buscaNormalizada = simplificarTexto(textoBusca);
   const tituloNormalizado = simplificarTexto(titulo);
 
   if (!buscaNormalizada || !tituloNormalizado) return 0;
-
   if (buscaNormalizada === tituloNormalizado) return 100;
 
   const numeroBusca = extrairNumero(textoBusca);
@@ -99,31 +160,45 @@ function pontuarCapitulo(capitulo, textoBusca = "") {
   let pontos = 0;
 
   if (numeroBusca) {
-    if (ordem === numeroBusca) pontos += 80;
-    if (numeroTitulo === numeroBusca) pontos += 75;
+    if (ordem === numeroBusca) pontos += 85;
+    if (numeroTitulo === numeroBusca) pontos += 80;
   }
 
   if (
     tituloNormalizado.includes(buscaNormalizada) ||
     buscaNormalizada.includes(tituloNormalizado)
   ) {
-    pontos += 60;
+    pontos += 75;
   }
 
   const tituloLimpo = limparTituloParaComparacao(titulo);
   const buscaLimpa = limparTituloParaComparacao(textoBusca);
 
   if (tituloLimpo && buscaLimpa) {
-    if (tituloLimpo === buscaLimpa) pontos += 55;
+    if (tituloLimpo === buscaLimpa) pontos += 70;
 
     if (tituloLimpo.includes(buscaLimpa) || buscaLimpa.includes(tituloLimpo)) {
-      pontos += 45;
+      pontos += 65;
     }
 
-    pontos += calcularSimilaridade(tituloLimpo, buscaLimpa) * 40;
+    pontos += calcularSimilaridadeGeral(tituloLimpo, buscaLimpa) * 70;
   }
 
-  pontos += calcularSimilaridade(titulo, textoBusca) * 30;
+  pontos += calcularSimilaridadeGeral(titulo, textoBusca) * 50;
+
+  const tokensBusca = tokenizar(textoBusca);
+  const tokensTitulo = tokenizar(titulo);
+
+  const tokensImportantesEncontrados = tokensBusca.filter((tokenBusca) =>
+    tokensTitulo.some(
+      (tokenTitulo) =>
+        tokenTitulo.includes(tokenBusca) ||
+        tokenBusca.includes(tokenTitulo) ||
+        similaridadeAproximada(tokenBusca, tokenTitulo) >= 0.78
+    )
+  ).length;
+
+  pontos += tokensImportantesEncontrados * 20;
 
   return pontos;
 }
@@ -272,7 +347,7 @@ export function encontrarCapituloPorTexto(capitulos = [], texto = "") {
 
   if (!melhor) return null;
 
-  if (melhor.pontos >= 45) {
+  if (melhor.pontos >= 35) {
     return melhor.capitulo;
   }
 
