@@ -71,6 +71,50 @@ function garantirDistribuicao(distribuicao = {}) {
   };
 }
 
+function gerarResultadoFalha({ capitulo, erro }) {
+  const tempoEstimado = calcularTempoEstimado(capitulo.palavras);
+
+  return {
+    ...capitulo,
+    erroVerificacao: true,
+    erroMensagem:
+      erro?.message ||
+      "Não foi possível verificar este capítulo automaticamente.",
+    resultado: {
+      aprovado: false,
+      aprovadoManualmente: false,
+      motivoAprovacaoManual: "",
+      comentarios: [],
+      motivos: [
+        erro?.message ||
+          "Falha ao consultar o Wattpad. É possível aprovar manualmente com justificativa."
+      ],
+      regraAplicada: {
+        tipo: capitulo.tipo,
+        minimoComentarios: 0,
+        exigeDistribuicao: false,
+        exigeTempo: false,
+        minhaObra: false,
+        falhaWattpad: true
+      },
+      estatisticas: {
+        comentarios: 0,
+        minimoNecessario: 0,
+        tempoEstimado,
+        tempoReal: 0,
+        distribuicao: {
+          inicio: 0,
+          meio: 0,
+          fim: 0,
+          geral: 0
+        }
+      },
+      observacao:
+        "Falha na verificação automática. Confira manualmente ou tente novamente."
+    }
+  };
+}
+
 function gerarResultado({
   capitulo,
   comentariosUsuario,
@@ -197,6 +241,7 @@ async function verificarCapituloReal({
   if (capitulo.minhaObra) {
     return {
       ...capitulo,
+      erroVerificacao: false,
       resultado: gerarResultado({
         capitulo,
         comentariosUsuario: [],
@@ -213,59 +258,75 @@ async function verificarCapituloReal({
     };
   }
 
-  const detalhes = await buscarDetalhesCapituloWattpad({
-    capituloId: capitulo.wattpadId,
-    linkCapitulo: capitulo.link,
-    userLeitor
-  });
+  try {
+    const detalhes = await buscarDetalhesCapituloWattpad({
+      capituloId: capitulo.wattpadId,
+      linkCapitulo: capitulo.link,
+      userLeitor
+    });
 
-  const comentariosUsuario = detalhes.comentariosUsuario || [];
+    const comentariosUsuario = detalhes.comentariosUsuario || [];
 
-  const distribuicao = garantirDistribuicao(
-    detalhes.distribuicaoComentarios || {
-      inicio: 0,
-      meio: 0,
-      fim: 0,
-      geral: 0
-    }
-  );
+    const distribuicao = garantirDistribuicao(
+      detalhes.distribuicaoComentarios || {
+        inicio: 0,
+        meio: 0,
+        fim: 0,
+        geral: 0
+      }
+    );
 
-  const tempoEstimado = calcularTempoEstimado(detalhes.palavras);
-  const tempoReal = calcularTempoReal(comentariosUsuario);
+    const tempoEstimado = calcularTempoEstimado(detalhes.palavras);
+    const tempoReal = calcularTempoReal(comentariosUsuario);
 
-  const minimoNecessario = calcularMinimoComentarios({
-    palavras: detalhes.palavras,
-    tipo: capitulo.tipo,
-    regras
-  });
+    const minimoNecessario = calcularMinimoComentarios({
+      palavras: detalhes.palavras,
+      tipo: capitulo.tipo,
+      regras
+    });
 
-  return {
-    ...capitulo,
-    palavras: detalhes.palavras,
-    paragrafos: detalhes.paragrafos,
-    comentariosTotais: detalhes.comentariosTotaisCapitulo || 0,
-    comentariosUsuarioTotal: detalhes.comentariosUsuarioTotal || 0,
-    distribuicaoComentarios: distribuicao,
-    resultado: gerarResultado({
-      capitulo,
-      comentariosUsuario,
-      distribuicao,
-      minimoNecessario,
-      tempoEstimado,
-      tempoReal
-    })
-  };
+    return {
+      ...capitulo,
+      erroVerificacao: false,
+      palavras: detalhes.palavras,
+      paragrafos: detalhes.paragrafos,
+      comentariosTotais: detalhes.comentariosTotaisCapitulo || 0,
+      comentariosUsuarioTotal: detalhes.comentariosUsuarioTotal || 0,
+      distribuicaoComentarios: distribuicao,
+      resultado: gerarResultado({
+        capitulo,
+        comentariosUsuario,
+        distribuicao,
+        minimoNecessario,
+        tempoEstimado,
+        tempoReal
+      })
+    };
+  } catch (erro) {
+    console.error("Erro ao verificar capítulo:", capitulo.titulo, erro);
+    return gerarResultadoFalha({ capitulo, erro });
+  }
 }
 
 export async function verificarLeiturasPreparadas({
   leituras = [],
   userLeitor = "",
-  regras = null
+  regras = null,
+  onProgress = null
 }) {
   const resultados = [];
 
   for (let index = 0; index < leituras.length; index += 1) {
     const leitura = leituras[index];
+
+    if (typeof onProgress === "function") {
+      onProgress({
+        etapa: "verificando",
+        atual: index + 1,
+        total: leituras.length,
+        titulo: leitura.titulo || leitura.textoFicha || `Capítulo ${index + 1}`
+      });
+    }
 
     const resultado = await verificarCapituloReal({
       capitulo: leitura,
@@ -274,6 +335,24 @@ export async function verificarLeiturasPreparadas({
     });
 
     resultados.push(resultado);
+
+    if (typeof onProgress === "function") {
+      onProgress({
+        etapa: "concluido",
+        atual: index + 1,
+        total: leituras.length,
+        titulo: leitura.titulo || leitura.textoFicha || `Capítulo ${index + 1}`
+      });
+    }
+  }
+
+  if (typeof onProgress === "function") {
+    onProgress({
+      etapa: "finalizado",
+      atual: leituras.length,
+      total: leituras.length,
+      titulo: ""
+    });
   }
 
   return resultados;

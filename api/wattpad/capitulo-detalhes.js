@@ -1,3 +1,49 @@
+const CACHE_TTL_MS = 1000 * 60 * 5;
+const RATE_LIMIT_MS = 450;
+
+const cache = globalThis.__wattpadCache || new Map();
+const rateState = globalThis.__wattpadRateState || {
+  ultimoRequest: 0
+};
+
+globalThis.__wattpadCache = cache;
+globalThis.__wattpadRateState = rateState;
+
+function esperar(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function respeitarRateLimit() {
+  const agora = Date.now();
+  const diferenca = agora - rateState.ultimoRequest;
+
+  if (diferenca < RATE_LIMIT_MS) {
+    await esperar(RATE_LIMIT_MS - diferenca);
+  }
+
+  rateState.ultimoRequest = Date.now();
+}
+
+function pegarCache(chave) {
+  const item = cache.get(chave);
+
+  if (!item) return null;
+
+  if (Date.now() - item.criadoEm > CACHE_TTL_MS) {
+    cache.delete(chave);
+    return null;
+  }
+
+  return item.valor;
+}
+
+function salvarCache(chave, valor) {
+  cache.set(chave, {
+    criadoEm: Date.now(),
+    valor
+  });
+}
+
 function extrairIdCapitulo(linkOuId = "") {
   const texto = String(linkOuId || "").trim();
 
@@ -71,6 +117,8 @@ function classificarPosicao(indice, total) {
 }
 
 async function fetchComTimeout(url, opcoes = {}, timeout = 12000) {
+  await respeitarRateLimit();
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
 
@@ -87,6 +135,11 @@ async function fetchComTimeout(url, opcoes = {}, timeout = 12000) {
 }
 
 async function fetchJsonSeguro(url, fallback = null) {
+  const cacheKey = `json:${url}`;
+  const cacheado = pegarCache(cacheKey);
+
+  if (cacheado) return cacheado;
+
   try {
     const resposta = await fetchComTimeout(url, {
       headers: {
@@ -99,13 +152,22 @@ async function fetchJsonSeguro(url, fallback = null) {
 
     if (!resposta.ok) return fallback;
 
-    return await resposta.json();
+    const dados = await resposta.json();
+
+    salvarCache(cacheKey, dados);
+
+    return dados;
   } catch {
     return fallback;
   }
 }
 
 async function fetchTextoSeguro(url) {
+  const cacheKey = `text:${url}`;
+  const cacheado = pegarCache(cacheKey);
+
+  if (cacheado) return cacheado;
+
   try {
     const resposta = await fetchComTimeout(url, {
       headers: {
@@ -120,7 +182,11 @@ async function fetchTextoSeguro(url) {
       throw new Error(`Wattpad respondeu com status ${resposta.status}.`);
     }
 
-    return await resposta.text();
+    const texto = await resposta.text();
+
+    salvarCache(cacheKey, texto);
+
+    return texto;
   } catch (erro) {
     if (erro.name === "AbortError") {
       throw new Error("Tempo limite excedido ao buscar o texto do capítulo.");
@@ -344,6 +410,7 @@ export default async function handler(req, res) {
     );
 
     const comentariosTotaisCapitulo = comentariosGerais.length;
+
     const distribuicaoComentariosUsuario =
       contarDistribuicaoComentarios(comentariosUsuario);
 
@@ -357,6 +424,13 @@ export default async function handler(req, res) {
       distribuicaoComentarios: distribuicaoComentariosUsuario,
       comentariosUsuario,
       paragrafosDetalhados: paragrafos,
+      cache: {
+        ativo: true,
+        ttlMs: CACHE_TTL_MS
+      },
+      rateLimit: {
+        intervaloMs: RATE_LIMIT_MS
+      },
       avisos: {
         textoEncontrado: paragrafos.length > 0,
         comentariosEncontrados: comentariosGerais.length > 0
@@ -367,9 +441,12 @@ export default async function handler(req, res) {
 
     return res.status(500).json({
       erro: true,
+      tipo: "WATTPAD_FETCH_ERROR",
       mensagem:
         erro.message ||
-        "Erro interno ao buscar detalhes do capítulo no Wattpad."
+        "Erro interno ao buscar detalhes do capítulo no Wattpad.",
+      sugestao:
+        "Tente novamente em alguns segundos. Se persistir, aprove manualmente com justificativa."
     });
   }
 }

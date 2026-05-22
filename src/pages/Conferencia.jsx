@@ -15,6 +15,7 @@ import {
 
 import { buscarRegrasPadrao } from "../services/regrasService.js";
 import { verificarLeiturasPreparadas } from "../services/conferenciaService.js";
+
 import {
   salvarConferenciaNoHistorico,
   verificarDuplicidadeConferencia
@@ -184,6 +185,13 @@ export default function Conferencia() {
 
   const [mensagem, setMensagem] = useState("");
 
+  const [progressoVerificacao, setProgressoVerificacao] = useState({
+    etapa: "",
+    atual: 0,
+    total: 0,
+    titulo: ""
+  });
+
   const [fichaAberta, setFichaAberta] = useState(true);
   const [interpretacaoAberta, setInterpretacaoAberta] = useState(true);
   const [planoAberto, setPlanoAberto] = useState(true);
@@ -221,6 +229,19 @@ export default function Conferencia() {
 
     return Array.from(mapa.values());
   }, [plano]);
+
+  const percentualProgresso = useMemo(() => {
+    if (!progressoVerificacao.total) return 0;
+
+    return Math.min(
+      100,
+      Math.round(
+        (Number(progressoVerificacao.atual || 0) /
+          Number(progressoVerificacao.total || 1)) *
+          100
+      )
+    );
+  }, [progressoVerificacao]);
 
   async function carregarBase() {
     try {
@@ -428,6 +449,12 @@ export default function Conferencia() {
     setPreparando(true);
     setMensagem("");
     setResultadoVerificacao([]);
+    setProgressoVerificacao({
+      etapa: "",
+      atual: 0,
+      total: 0,
+      titulo: ""
+    });
 
     try {
       const ficha = interpretarFicha(textoFicha);
@@ -667,18 +694,37 @@ export default function Conferencia() {
 
     setVerificando(true);
     setMensagem("");
+    setResultadoVerificacao([]);
+    setProgressoVerificacao({
+      etapa: "iniciando",
+      atual: 0,
+      total: plano.leituras.length,
+      titulo: "Preparando verificação..."
+    });
 
     try {
       const resultados = await verificarLeiturasPreparadas({
         leituras: plano.leituras,
         userLeitor: plano.ficha.userLeitor,
-        regras
+        regras,
+        onProgress: (progresso) => {
+          setProgressoVerificacao(progresso);
+        }
       });
 
       setResultadoVerificacao(resultados);
       setInterpretacaoAberta(false);
       setPlanoAberto(false);
-      setMensagem("Verificação concluída.");
+
+      const falhas = resultados.filter((item) => item.erroVerificacao).length;
+
+      if (falhas > 0) {
+        setMensagem(
+          `Verificação concluída com ${falhas} falha(s). Revise os capítulos marcados e aprove manualmente se necessário.`
+        );
+      } else {
+        setMensagem("Verificação concluída.");
+      }
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao verificar leituras.");
@@ -700,11 +746,13 @@ export default function Conferencia() {
 
       lista[index] = {
         ...lista[index],
+        erroVerificacao: false,
         resultado: {
           ...lista[index].resultado,
           aprovado: true,
           aprovadoManualmente: true,
-          motivoAprovacaoManual: motivo.trim()
+          motivoAprovacaoManual: motivo.trim(),
+          motivos: []
         }
       };
 
@@ -769,16 +817,11 @@ export default function Conferencia() {
         resumo
       };
 
-      const duplicidades = await verificarDuplicidadeConferencia(
-        payloadHistorico
-      );
+      const duplicidades = await verificarDuplicidadeConferencia(payloadHistorico);
 
       if (duplicidades.length > 0) {
         const textoDuplicidade = duplicidades
-          .map(
-            (item) =>
-              `• ${item.obraTitulo} — ${item.capituloTitulo}`
-          )
+          .map((item) => `• ${item.obraTitulo} — ${item.capituloTitulo}`)
           .join("\n");
 
         const continuar = window.confirm(
@@ -795,8 +838,6 @@ export default function Conferencia() {
       }
 
       await salvarConferenciaNoHistorico(payloadHistorico);
-
-      setMensagem("Conferência salva com sucesso.");
 
       window.location.reload();
     } catch (erro) {
@@ -815,6 +856,35 @@ export default function Conferencia() {
       </div>
 
       {mensagem && <div className="notice-card">{mensagem}</div>}
+
+      {verificando && (
+        <div className="card">
+          <h3>Verificando no Wattpad...</h3>
+
+          <div className="verification-progress">
+            <div className="verification-progress-bar">
+              <div
+                className="verification-progress-fill"
+                style={{
+                  width: `${percentualProgresso}%`
+                }}
+              />
+            </div>
+
+            <div className="verification-progress-info">
+              <strong>
+                {percentualProgresso}% • {progressoVerificacao.atual}/
+                {progressoVerificacao.total}
+              </strong>
+
+              <span>
+                {progressoVerificacao.titulo ||
+                  "Escaneando comentários e parágrafos..."}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <details className="step-card" open={fichaAberta}>
         <summary>
@@ -1147,9 +1217,11 @@ export default function Conferencia() {
               <div
                 key={`${resultado.capituloId}-${index}`}
                 className={`conference-item ${
-                  resultado.resultado.aprovado
-                    ? "result-approved"
-                    : "result-rejected"
+                  resultado.erroVerificacao
+                    ? "result-warning"
+                    : resultado.resultado.aprovado
+                      ? "result-approved"
+                      : "result-rejected"
                 }`}
               >
                 <div className="conference-item-header">
@@ -1161,10 +1233,20 @@ export default function Conferencia() {
                   <div>
                     <span>Status</span>
                     <strong>
-                      {resultado.resultado.aprovado ? "Aprovado" : "Reprovado"}
+                      {resultado.erroVerificacao
+                        ? "Falha no Wattpad"
+                        : resultado.resultado.aprovado
+                          ? "Aprovado"
+                          : "Reprovado"}
                     </strong>
                   </div>
                 </div>
+
+                {resultado.erroVerificacao && (
+                  <div className="notice-card">
+                    ⚠️ {resultado.erroMensagem}
+                  </div>
+                )}
 
                 {resultado.resultado.observacao && (
                   <div className="notice-card">
