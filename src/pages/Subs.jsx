@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import {
   listarSubs,
@@ -7,8 +8,6 @@ import {
 
 export default function Subs() {
   const [subs, setSubs] = useState([]);
-  const [subSelecionado, setSubSelecionado] = useState(null);
-
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState("");
@@ -54,10 +53,6 @@ export default function Subs() {
     carregarSubs();
   }, []);
 
-  function selecionarSub(sub) {
-    setSubSelecionado(sub);
-  }
-
   function abrirNovoSub() {
     setFormSub({
       id: "",
@@ -71,24 +66,6 @@ export default function Subs() {
       identidadeVisual: "",
       descricao: "",
       regras: ""
-    });
-
-    setModalAberto(true);
-  }
-
-  function abrirEditarSub(sub) {
-    setFormSub({
-      id: sub.id || "",
-      nome: sub.nome || "",
-      codigo: sub.codigo || "",
-      adm: sub.adm || "",
-      imagemPerfil: sub.imagemPerfil || "",
-      corPrimaria: sub.corPrimaria || "#6B21A8",
-      corSecundaria: sub.corSecundaria || "#3B0764",
-      corDestaque: sub.corDestaque || "#F5C842",
-      identidadeVisual: sub.identidadeVisual || "",
-      descricao: sub.descricao || "",
-      regras: sub.regras || ""
     });
 
     setModalAberto(true);
@@ -110,25 +87,10 @@ export default function Subs() {
     setMensagem("");
 
     try {
-      const id = await salvarOuAtualizarSub(formSub);
-
-      const lista = await listarSubs();
-
-      setSubs(lista);
-
-      const atualizado = lista.find((item) => item.id === id);
-
-      if (atualizado) {
-        setSubSelecionado(atualizado);
-      }
-
-      setMensagem(
-        formSub.id
-          ? "Sub atualizado com sucesso."
-          : "Sub criado com sucesso."
-      );
-
+      await salvarOuAtualizarSub(formSub);
+      setMensagem("Sub criado com sucesso.");
       setModalAberto(false);
+      await carregarSubs();
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao salvar sub.");
@@ -152,7 +114,7 @@ export default function Subs() {
       <div className="page-title page-title-row">
         <div>
           <h2>Subs</h2>
-          <p>Gerencie identidade visual, ADM e informações dos subs.</p>
+          <p>Gerencie os subs usados nas conferências.</p>
         </div>
 
         <button
@@ -166,179 +128,50 @@ export default function Subs() {
 
       {mensagem && <div className="notice-card">{mensagem}</div>}
 
-      <div className="works-layout">
-        <div className="card">
-          <h3>Subs cadastrados</h3>
+      <div className="card">
+        <h3>Subs cadastrados</h3>
 
-          {subsOrdenados.length === 0 ? (
-            <div className="empty-state">Nenhum sub cadastrado.</div>
-          ) : (
-            <div className="works-list">
-              {subsOrdenados.map((sub) => (
-                <button
-                  type="button"
-                  key={sub.id}
-                  onClick={() => selecionarSub(sub)}
-                  className={`work-list-item ${
-                    subSelecionado?.id === sub.id
-                      ? "work-list-item-active"
-                      : ""
-                  }`}
-                >
-                  <div className="work-list-cover">
-                    {sub.imagemPerfil ? (
-                      <img src={sub.imagemPerfil} alt={sub.nome} />
-                    ) : (
-                      <span>Sem imagem</span>
-                    )}
-                  </div>
-
-                  <div>
-                    <strong>{sub.nome}</strong>
-
-                    <span>
-                      {sub.codigo || "Sem código"}
-                      {sub.adm ? ` • ADM ${sub.adm}` : ""}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="card">
-          {!subSelecionado ? (
-            <div className="empty-state">
-              Selecione um sub para visualizar informações.
-            </div>
-          ) : (
-            <>
-              <div
-                className="sub-hero-card"
-                style={{
-                  background: `linear-gradient(135deg, ${
-                    subSelecionado.corPrimaria || "#6B21A8"
-                  }, ${
-                    subSelecionado.corSecundaria || "#3B0764"
-                  })`
-                }}
-              >
-                <div className="sub-hero-image">
-                  {subSelecionado.imagemPerfil ? (
-                    <img
-                      src={subSelecionado.imagemPerfil}
-                      alt={subSelecionado.nome}
-                    />
+        {subsOrdenados.length === 0 ? (
+          <div className="empty-state">Nenhum sub cadastrado.</div>
+        ) : (
+          <div className="works-list">
+            {subsOrdenados.map((sub) => (
+              <div className="work-list-card" key={sub.id}>
+                <div className="work-list-cover">
+                  {sub.imagemPerfil ? (
+                    <img src={sub.imagemPerfil} alt={sub.nome} />
                   ) : (
-                    <span>Sem imagem</span>
+                    <div className="obra-cover-placeholder">Sem imagem</div>
                   )}
                 </div>
 
-                <div className="sub-hero-content">
-                  <h3>{subSelecionado.nome}</h3>
+                <div className="work-list-info">
+                  <h3>{sub.nome || "Sem nome"}</h3>
 
                   <p>
-                    {subSelecionado.codigo || "Sem código"}
-                    {subSelecionado.adm
-                      ? ` • ADM ${subSelecionado.adm}`
-                      : ""}
+                    {sub.codigo || "Sem código"}
+                    {sub.adm ? ` • ADM ${sub.adm}` : ""}
                   </p>
 
-                  {subSelecionado.identidadeVisual && (
-                    <div className="sub-identity-box">
-                      {subSelecionado.identidadeVisual}
-                    </div>
-                  )}
+                  {sub.identidadeVisual && <span>{sub.identidadeVisual}</span>}
                 </div>
 
-                <button
-                  type="button"
-                  className="button-secondary"
-                  onClick={() => abrirEditarSub(subSelecionado)}
-                >
-                  Editar sub
-                </button>
-              </div>
-
-              <div className="section-divider" />
-
-              <div className="sub-color-preview">
-                <div>
-                  <span>Primária</span>
-
-                  <div
-                    className="color-preview"
-                    style={{
-                      background: subSelecionado.corPrimaria
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <span>Secundária</span>
-
-                  <div
-                    className="color-preview"
-                    style={{
-                      background: subSelecionado.corSecundaria
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <span>Destaque</span>
-
-                  <div
-                    className="color-preview"
-                    style={{
-                      background: subSelecionado.corDestaque
-                    }}
-                  />
+                <div className="work-list-actions">
+                  <Link className="button-secondary" to={`/subs/${sub.id}`}>
+                    Detalhes
+                  </Link>
                 </div>
               </div>
-
-              <div className="section-divider" />
-
-              <div className="sub-info-grid">
-                <div className="card">
-                  <h3>Descrição</h3>
-
-                  {subSelecionado.descricao ? (
-                    <p>{subSelecionado.descricao}</p>
-                  ) : (
-                    <div className="empty-state">
-                      Nenhuma descrição cadastrada.
-                    </div>
-                  )}
-                </div>
-
-                <div className="card">
-                  <h3>Regras</h3>
-
-                  {subSelecionado.regras ? (
-                    <pre className="code-preview">
-                      {subSelecionado.regras}
-                    </pre>
-                  ) : (
-                    <div className="empty-state">
-                      Nenhuma regra cadastrada.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {modalAberto && (
         <div className="modal-backdrop">
           <div className="modal-card">
             <div className="modal-header">
-              <h3>
-                {formSub.id ? "Editar sub" : "Novo sub"}
-              </h3>
+              <h3>Novo sub</h3>
 
               <button type="button" onClick={fecharModal}>
                 ×

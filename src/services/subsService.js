@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
@@ -22,6 +23,20 @@ export async function listarSubs() {
     id: documento.id,
     ...documento.data()
   }));
+}
+
+export async function buscarSubPorId(subId) {
+  const ref = doc(db, SUBS_COLLECTION, subId);
+  const snapshot = await getDoc(ref);
+
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  return {
+    id: snapshot.id,
+    ...snapshot.data()
+  };
 }
 
 export async function salvarSub(dados) {

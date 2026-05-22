@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Obras from "./pages/Obras.jsx";
 import ObraDetalhes from "./pages/ObraDetalhes.jsx";
 import Subs from "./pages/Subs.jsx";
+import SubDetalhes from "./pages/SubDetalhes.jsx";
 import Regras from "./pages/Regras.jsx";
 import Conferencia from "./pages/Conferencia.jsx";
 import Historico from "./pages/Historico.jsx";
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/obras" element={<Obras />} />
           <Route path="/obras/:obraId" element={<ObraDetalhes />} />
           <Route path="/subs" element={<Subs />} />
+          <Route path="/subs/:subId" element={<SubDetalhes />} />
           <Route path="/regras" element={<Regras />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
 
