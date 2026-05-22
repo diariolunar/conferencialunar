@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -10,9 +10,12 @@ import {
 
 import { salvarCapitulosDaObra } from "../services/capitulosService.js";
 import { interpretarImportacaoWattpad } from "../utils/interpretarImportacaoWattpad.js";
+import { normalizarTexto } from "../utils/normalizarTexto.js";
 
 export default function Obras() {
   const [obras, setObras] = useState([]);
+  const [busca, setBusca] = useState("");
+
   const [modalAberto, setModalAberto] = useState(false);
   const [abaImportacao, setAbaImportacao] = useState("console");
   const [linkImportacao, setLinkImportacao] = useState("");
@@ -20,6 +23,33 @@ export default function Obras() {
   const [previewImportacao, setPreviewImportacao] = useState(null);
   const [mensagem, setMensagem] = useState("");
   const [importando, setImportando] = useState(false);
+
+  const obrasFiltradas = useMemo(() => {
+    const termo = normalizarTexto(busca);
+
+    return [...obras]
+      .filter((obra) => {
+        if (!termo) return true;
+
+        const alvo = normalizarTexto(
+          [
+            obra.titulo,
+            obra.autor,
+            obra.userAutor,
+            obra.wattpadId
+          ]
+            .filter(Boolean)
+            .join(" ")
+        );
+
+        return alvo.includes(termo);
+      })
+      .sort((a, b) =>
+        String(a.titulo || "").localeCompare(String(b.titulo || ""), "pt-BR", {
+          sensitivity: "base"
+        })
+      );
+  }, [obras, busca]);
 
   async function carregarObras() {
     try {
@@ -160,11 +190,30 @@ export default function Obras() {
       {mensagem && <div className="notice-card">{mensagem}</div>}
 
       <div className="card">
-        {obras.length === 0 ? (
-          <div className="empty-state">Nenhuma obra cadastrada.</div>
+        <div className="page-title-row">
+          <div>
+            <h3>Obras cadastradas</h3>
+            <p>
+              {obrasFiltradas.length} obra(s) exibida(s) de {obras.length}.
+            </p>
+          </div>
+
+          <label className="search-field">
+            Buscar obra
+            <input
+              type="search"
+              value={busca}
+              onChange={(evento) => setBusca(evento.target.value)}
+              placeholder="Buscar por título, autor, user ou ID"
+            />
+          </label>
+        </div>
+
+        {obrasFiltradas.length === 0 ? (
+          <div className="empty-state">Nenhuma obra encontrada.</div>
         ) : (
           <div className="works-list">
-            {obras.map((obra) => (
+            {obrasFiltradas.map((obra) => (
               <div className="work-list-card" key={obra.id}>
                 <div className="work-list-cover">
                   {obra.capa ? (

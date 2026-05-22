@@ -1,23 +1,143 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs
+} from "firebase/firestore";
+
+import { db } from "../firebase/config.js";
+
+async function apagarColecaoSimples(nomeColecao) {
+  const snapshot = await getDocs(collection(db, nomeColecao));
+
+  for (const documento of snapshot.docs) {
+    await deleteDoc(doc(db, nomeColecao, documento.id));
+  }
+
+  return snapshot.docs.length;
+}
+
+async function apagarObrasComCapitulos() {
+  const obrasSnapshot = await getDocs(collection(db, "obras"));
+
+  let totalCapitulos = 0;
+
+  for (const obraDoc of obrasSnapshot.docs) {
+    const capitulosSnapshot = await getDocs(
+      collection(db, "obras", obraDoc.id, "capitulos")
+    );
+
+    for (const capituloDoc of capitulosSnapshot.docs) {
+      await deleteDoc(
+        doc(db, "obras", obraDoc.id, "capitulos", capituloDoc.id)
+      );
+
+      totalCapitulos += 1;
+    }
+
+    await deleteDoc(doc(db, "obras", obraDoc.id));
+  }
+
+  return {
+    obras: obrasSnapshot.docs.length,
+    capitulos: totalCapitulos
+  };
+}
 
 export default function Configuracoes() {
+  const [mensagem, setMensagem] = useState("");
+  const [apagando, setApagando] = useState("");
+
   const statusSistema = useMemo(() => {
     return {
       frontend: "React + Vite",
       banco: "Firebase Firestore",
       api: "Serverless Vercel",
-      comentarios: "Mock ativo no frontend",
-      importacaoWattpad: "API experimental",
+      comentarios: "API real do Wattpad",
+      importacaoWattpad: "Bookmarklet + Link automático",
       deploy: "GitHub conectado ao Vercel"
     };
   }, []);
+
+  async function confirmarDuasVezes({
+    tipo,
+    textoConfirmacao,
+    acao
+  }) {
+    const primeiraConfirmacao = window.confirm(
+      `ATENÇÃO!\n\nVocê está prestes a apagar ${tipo}.\n\nEssa ação não deve ser feita sem certeza.\n\nDeseja continuar?`
+    );
+
+    if (!primeiraConfirmacao) return;
+
+    const segundaConfirmacao = window.prompt(
+      `Confirmação final.\n\nDigite exatamente:\n${textoConfirmacao}\n\npara apagar ${tipo}.`
+    );
+
+    if (segundaConfirmacao !== textoConfirmacao) {
+      setMensagem("Ação cancelada. Texto de confirmação incorreto.");
+      return;
+    }
+
+    setApagando(tipo);
+    setMensagem("");
+
+    try {
+      await acao();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem(`Erro ao apagar ${tipo}.`);
+    } finally {
+      setApagando("");
+    }
+  }
+
+  async function limparHistorico() {
+    await confirmarDuasVezes({
+      tipo: "o histórico",
+      textoConfirmacao: "APAGAR HISTORICO",
+      acao: async () => {
+        const total = await apagarColecaoSimples("historicoConferencias");
+        setMensagem(`${total} registro(s) do histórico apagado(s).`);
+      }
+    });
+  }
+
+  async function limparSubs() {
+    await confirmarDuasVezes({
+      tipo: "os subs",
+      textoConfirmacao: "APAGAR SUBS",
+      acao: async () => {
+        const total = await apagarColecaoSimples("subs");
+        setMensagem(`${total} sub(s) apagado(s).`);
+      }
+    });
+  }
+
+  async function limparObras() {
+    await confirmarDuasVezes({
+      tipo: "as obras e capítulos",
+      textoConfirmacao: "APAGAR OBRAS",
+      acao: async () => {
+        const resultado = await apagarObrasComCapitulos();
+
+        setMensagem(
+          `${resultado.obras} obra(s) e ${resultado.capitulos} capítulo(s) apagado(s).`
+        );
+      }
+    });
+  }
 
   return (
     <section className="page">
       <div className="page-title">
         <h2>Configurações</h2>
-        <p>Status geral e instruções técnicas do sistema.</p>
+        <p>Status geral, instruções técnicas e manutenção do sistema.</p>
       </div>
+
+      {mensagem && <div className="notice-card">{mensagem}</div>}
 
       <div className="card">
         <h3>Status do sistema</h3>
@@ -55,34 +175,47 @@ export default function Configuracoes() {
         </div>
       </div>
 
-      <div className="card">
-        <h3>Como alternar comentários mock/API real</h3>
+      <div className="card warning-card">
+        <h3>Zona de manutenção</h3>
 
         <div className="warning-list">
           <p>
-            Atualmente o sistema usa comentários mockados para testar a conferência
-            sem depender do Wattpad.
+            Use estas opções apenas quando tiver certeza. Cada limpeza pede duas
+            confirmações antes de apagar.
           </p>
+        </div>
 
-          <p>
-            Para tentar buscar comentários reais, abra o arquivo:
-          </p>
+        <div className="actions-row">
+          <button
+            type="button"
+            className="button-danger"
+            onClick={limparHistorico}
+            disabled={Boolean(apagando)}
+          >
+            {apagando === "o histórico"
+              ? "Apagando..."
+              : "Limpar histórico"}
+          </button>
 
-          <p>
-            <strong>src/services/comentariosService.js</strong>
-          </p>
+          <button
+            type="button"
+            className="button-danger"
+            onClick={limparSubs}
+            disabled={Boolean(apagando)}
+          >
+            {apagando === "os subs" ? "Apagando..." : "Limpar subs"}
+          </button>
 
-          <p>
-            E troque:
-          </p>
-
-          <pre className="code-preview">const USAR_COMENTARIOS_MOCK = true;</pre>
-
-          <p>
-            Para:
-          </p>
-
-          <pre className="code-preview">const USAR_COMENTARIOS_MOCK = false;</pre>
+          <button
+            type="button"
+            className="button-danger"
+            onClick={limparObras}
+            disabled={Boolean(apagando)}
+          >
+            {apagando === "as obras e capítulos"
+              ? "Apagando..."
+              : "Limpar obras"}
+          </button>
         </div>
       </div>
 
@@ -91,13 +224,14 @@ export default function Configuracoes() {
 
         <div className="warning-list">
           <p>
-            O Wattpad pode bloquear ou ocultar comentários no HTML inicial.
-            Por isso, a API real é experimental.
+            O Wattpad pode limitar ou falhar em algumas buscas. Quando isso
+            acontecer, o sistema deve registrar a falha sem derrubar a
+            conferência inteira.
           </p>
 
           <p>
-            O sistema foi estruturado de forma segura: mesmo se a API real falhar,
-            a conferência, o histórico, as regras e o banco continuam funcionando.
+            A importação de obras continua preservando o fluxo atual:
+            Bookmarklet e Link automático.
           </p>
         </div>
       </div>

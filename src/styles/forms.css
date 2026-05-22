@@ -114,3 +114,11 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+.search-field {
+  min-width: min(360px, 100%);
+}
+
+.search-field input {
+  width: 100%;
+}

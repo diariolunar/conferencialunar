@@ -32,12 +32,38 @@ function normalizarUser(user = "") {
   return normalizarTexto(user).replace(/^@/, "");
 }
 
+function gerarChaveMembro(item = {}) {
+  const user = normalizarUser(item.userLeitor || "");
+
+  if (user) {
+    return `@${user}`;
+  }
+
+  return normalizarTexto(item.nomeLeitor || "membro-nao-informado");
+}
+
+function formatarMembro(item = {}) {
+  const nome = item.nomeLeitor || "Membro não informado";
+  const user = normalizarUser(item.userLeitor || "");
+
+  if (user) {
+    return `${nome} • @${user}`;
+  }
+
+  return nome;
+}
+
 export async function salvarConferenciaNoHistorico(conferencia) {
+  const userNormalizado = normalizarUser(conferencia.userLeitor || "");
+
   const ref = await addDoc(collection(db, HISTORICO_COLLECTION), {
     sub: conferencia.sub || "",
     diaSemana: conferencia.diaSemana || "",
     nomeLeitor: conferencia.nomeLeitor || "",
     userLeitor: conferencia.userLeitor || "",
+    userLeitorNormalizado: userNormalizado,
+    chaveMembro: gerarChaveMembro(conferencia),
+    membroExibicao: formatarMembro(conferencia),
     adm: conferencia.adm || "",
     minhaObra: Boolean(conferencia.minhaObra),
     feedbackOferecido: Boolean(conferencia.feedbackOferecido),
@@ -55,11 +81,15 @@ export async function salvarConferenciaNoHistorico(conferencia) {
 
 export async function atualizarConferenciaNoHistorico(conferenciaId, dados) {
   const ref = doc(db, HISTORICO_COLLECTION, conferenciaId);
+  const userNormalizado = normalizarUser(dados.userLeitor || "");
 
   await setDoc(
     ref,
     {
       ...dados,
+      userLeitorNormalizado: userNormalizado,
+      chaveMembro: gerarChaveMembro(dados),
+      membroExibicao: formatarMembro(dados),
       atualizadoEm: serverTimestamp()
     },
     { merge: true }
@@ -113,7 +143,7 @@ export async function verificarDuplicidadeConferencia(conferencia) {
 
   const q = query(
     collection(db, HISTORICO_COLLECTION),
-    where("userLeitor", "==", conferencia.userLeitor || ""),
+    where("userLeitorNormalizado", "==", user),
     where("diaSemana", "==", conferencia.diaSemana || "")
   );
 
@@ -158,8 +188,9 @@ export function agruparHistoricoPorSubDiaMembro(historico = []) {
   historico.forEach((item) => {
     const sub = item.sub || "Sub não informado";
     const dia = item.diaSemana || "Dia não informado";
-    const membro =
-      item.nomeLeitor || item.userLeitor || "Membro não informado";
+    const membroChave = item.chaveMembro || gerarChaveMembro(item);
+    const membroLabel = item.membroExibicao || formatarMembro(item);
+    const membro = `${membroLabel}|||${membroChave}`;
 
     if (!grupos[sub]) grupos[sub] = {};
     if (!grupos[sub][dia]) grupos[sub][dia] = {};
@@ -213,6 +244,8 @@ export function calcularDashboardHistorico(lista = []) {
       diaSemana: conferencia.diaSemana,
       nomeLeitor: conferencia.nomeLeitor,
       userLeitor: conferencia.userLeitor,
+      chaveMembro: conferencia.chaveMembro || gerarChaveMembro(conferencia),
+      membroExibicao: conferencia.membroExibicao || formatarMembro(conferencia),
       adm: conferencia.adm
     }))
   );
@@ -225,8 +258,8 @@ export function calcularDashboardHistorico(lista = []) {
   capitulos.forEach((capitulo) => {
     const dia = capitulo.diaSemana || "Dia não informado";
     const sub = capitulo.sub || "Sub não informado";
-    const membro =
-      capitulo.nomeLeitor || capitulo.userLeitor || "Membro não informado";
+    const membroChave = capitulo.chaveMembro || gerarChaveMembro(capitulo);
+    const membroNome = capitulo.membroExibicao || formatarMembro(capitulo);
     const obra = capitulo.obraTitulo || "Obra não informada";
 
     if (!porDia[dia]) {
@@ -247,8 +280,9 @@ export function calcularDashboardHistorico(lista = []) {
       };
     }
 
-    if (!porMembro[membro]) {
-      porMembro[membro] = {
+    if (!porMembro[membroChave]) {
+      porMembro[membroChave] = {
+        nome: membroNome,
         total: 0,
         aprovados: 0,
         reprovados: 0,
@@ -268,7 +302,7 @@ export function calcularDashboardHistorico(lista = []) {
     const aprovado = Boolean(capitulo.resultado?.aprovado);
     const comentarios = Number(capitulo.resultado?.estatisticas?.comentarios || 0);
 
-    [porDia[dia], porSub[sub], porMembro[membro], porObra[obra]].forEach(
+    [porDia[dia], porSub[sub], porMembro[membroChave], porObra[obra]].forEach(
       (grupo) => {
         grupo.total += 1;
         grupo.comentarios += comentarios;
@@ -282,12 +316,9 @@ export function calcularDashboardHistorico(lista = []) {
     );
   });
 
-  const rankingMembros = Object.entries(porMembro)
-    .map(([nome, dados]) => ({
-      nome,
-      ...dados
-    }))
-    .sort((a, b) => b.aprovados - a.aprovados || b.comentarios - a.comentarios);
+  const rankingMembros = Object.values(porMembro).sort(
+    (a, b) => b.aprovados - a.aprovados || b.comentarios - a.comentarios
+  );
 
   const rankingObras = Object.entries(porObra)
     .map(([nome, dados]) => ({

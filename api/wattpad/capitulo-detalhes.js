@@ -103,7 +103,7 @@ function extrairParagrafosDoHtml(html = "") {
         palavras: contarPalavras(conteudo)
       };
     })
-    .filter((paragrafo) => paragrafo.texto);
+    .filter((paragrafo) => paragrafo.texto || paragrafo.id);
 }
 
 function classificarPosicao(indice, total) {
@@ -123,12 +123,10 @@ async function fetchComTimeout(url, opcoes = {}, timeout = 12000) {
   const timer = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const resposta = await fetch(url, {
+    return await fetch(url, {
       ...opcoes,
       signal: controller.signal
     });
-
-    return resposta;
   } finally {
     clearTimeout(timer);
   }
@@ -153,7 +151,6 @@ async function fetchJsonSeguro(url, fallback = null) {
     if (!resposta.ok) return fallback;
 
     const dados = await resposta.json();
-
     salvarCache(cacheKey, dados);
 
     return dados;
@@ -183,7 +180,6 @@ async function fetchTextoSeguro(url) {
     }
 
     const texto = await resposta.text();
-
     salvarCache(cacheKey, texto);
 
     return texto;
@@ -226,7 +222,6 @@ function montarUrlComentariosGerais(capituloId, afterResourceId = "") {
 
 async function fetchComentariosGeraisCapitulo(capituloId) {
   const todosComentarios = [];
-
   let afterResourceId = "";
   let pagina = 0;
 
@@ -240,9 +235,7 @@ async function fetchComentariosGeraisCapitulo(capituloId) {
 
     const proximo = dados?.pagination?.after?.resourceId;
 
-    if (!proximo || comentarios.length === 0) {
-      break;
-    }
+    if (!proximo || comentarios.length === 0) break;
 
     afterResourceId = proximo;
     pagina += 1;
@@ -252,7 +245,38 @@ async function fetchComentariosGeraisCapitulo(capituloId) {
 }
 
 function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
-  const totalReal = paragrafosHtml.length;
+  const mapaHtml = new Map();
+
+  paragrafosHtml.forEach((paragrafoHtml) => {
+    if (paragrafoHtml.id) {
+      mapaHtml.set(paragrafoHtml.id, paragrafoHtml);
+    }
+  });
+
+  const base =
+    paragrafosHtml.length > 0
+      ? paragrafosHtml
+      : paragrafosApi.map((paragrafoApi, index) => ({
+          id: paragrafoApi.id || "",
+          indice: index,
+          texto: "",
+          palavras: 0
+        }));
+
+  const idsBase = new Set(base.map((paragrafo) => paragrafo.id).filter(Boolean));
+
+  const extrasApi = paragrafosApi
+    .filter((paragrafoApi) => paragrafoApi.id && !idsBase.has(paragrafoApi.id))
+    .map((paragrafoApi, index) => ({
+      id: paragrafoApi.id,
+      indice: base.length + index,
+      texto: "",
+      palavras: 0
+    }));
+
+  const todos = [...base, ...extrasApi];
+  const totalReal = todos.length;
+
   const mapaApi = new Map();
 
   paragrafosApi.forEach((paragrafoApi) => {
@@ -261,14 +285,14 @@ function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
     }
   });
 
-  return paragrafosHtml.map((paragrafoHtml, index) => {
-    const api = mapaApi.get(paragrafoHtml.id) || {};
+  return todos.map((paragrafo, index) => {
+    const api = mapaApi.get(paragrafo.id) || {};
 
     return {
-      id: paragrafoHtml.id,
+      id: paragrafo.id,
       indice: index,
-      texto: paragrafoHtml.texto || "",
-      palavras: Number(paragrafoHtml.palavras || 0),
+      texto: paragrafo.texto || "",
+      palavras: Number(paragrafo.palavras || 0),
       commentCount: Number(api.commentCount || 0),
       posicao: classificarPosicao(index, totalReal)
     };
@@ -279,9 +303,10 @@ function criarMapaParagrafos(paragrafos = []) {
   const mapa = new Map();
 
   paragrafos.forEach((paragrafo) => {
-    if (paragrafo.id) {
-      mapa.set(paragrafo.id, paragrafo);
-    }
+    if (!paragrafo.id) return;
+
+    mapa.set(paragrafo.id, paragrafo);
+    mapa.set(String(paragrafo.id).toLowerCase(), paragrafo);
   });
 
   return mapa;
@@ -294,12 +319,37 @@ function extrairParagrafoIdDoComentario(comentario = {}, capituloId = "") {
 
   if (!resourceId) return "";
 
-  return resourceId.replace(`${capituloId}_`, "");
+  const prefixo = `${capituloId}_`;
+
+  if (resourceId.startsWith(prefixo)) {
+    return resourceId.slice(prefixo.length);
+  }
+
+  const partes = resourceId.split("_");
+
+  if (partes.length >= 2) {
+    return partes[1];
+  }
+
+  return resourceId;
+}
+
+function encontrarParagrafoNoMapa(mapaParagrafos, paragrafoId = "") {
+  if (!paragrafoId) return null;
+
+  return (
+    mapaParagrafos.get(paragrafoId) ||
+    mapaParagrafos.get(String(paragrafoId).toLowerCase()) ||
+    null
+  );
 }
 
 function normalizarComentario({ comentario, capituloId, mapaParagrafos }) {
   const paragrafoId = extrairParagrafoIdDoComentario(comentario, capituloId);
-  const paragrafo = paragrafoId ? mapaParagrafos.get(paragrafoId) : null;
+  const paragrafo = encontrarParagrafoNoMapa(mapaParagrafos, paragrafoId);
+
+  const ehComentarioDeParagrafo =
+    comentario.resource?.namespace === "paragraphs";
 
   const ehComentarioGeral = comentario.resource?.namespace === "parts";
 
@@ -315,8 +365,10 @@ function normalizarComentario({ comentario, capituloId, mapaParagrafos }) {
     link: comentario.deeplink || "",
     paragrafoId,
     paragrafoIndice: paragrafo?.indice ?? null,
-    posicao: ehComentarioGeral ? "geral" : paragrafo?.posicao || "geral",
-    tipo: ehComentarioGeral ? "geral" : "paragrafo"
+    posicao: ehComentarioGeral
+      ? "geral"
+      : paragrafo?.posicao || "paragrafo",
+    tipo: ehComentarioDeParagrafo ? "paragrafo" : "geral"
   };
 }
 
@@ -363,7 +415,8 @@ function contarDistribuicaoComentarios(comentarios = []) {
     inicio: comentarios.filter((comentario) => comentario.posicao === "inicio").length,
     meio: comentarios.filter((comentario) => comentario.posicao === "meio").length,
     fim: comentarios.filter((comentario) => comentario.posicao === "fim").length,
-    geral: comentarios.filter((comentario) => comentario.posicao === "geral").length
+    geral: comentarios.filter((comentario) => comentario.posicao === "geral").length,
+    paragrafo: comentarios.filter((comentario) => comentario.posicao === "paragrafo").length
   };
 }
 
