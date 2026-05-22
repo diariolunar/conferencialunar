@@ -3,8 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import {
   agruparHistoricoPorSubDiaMembro,
   calcularResumoHistorico,
-  listarHistoricoConferencias
+  excluirConferenciaDoHistorico,
+  listarHistoricoConferencias,
+  atualizarConferenciaNoHistorico
 } from "../services/historicoService.js";
+
+import { gerarResumoConferencia } from "../utils/gerarResumoConferencia.js";
 
 const DIAS_PADRAO = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
 
@@ -21,6 +25,45 @@ function ordenarDias(dias = []) {
   });
 }
 
+function gerarResumoPorSub(sub = "", conferencias = []) {
+  const capitulos = conferencias.flatMap((item) => item.capitulos || []);
+
+  const aprovados = capitulos.filter((capitulo) => capitulo.resultado?.aprovado);
+  const reprovados = capitulos.filter(
+    (capitulo) => capitulo.resultado && !capitulo.resultado.aprovado
+  );
+
+  const linhas = [];
+
+  linhas.push(`🌙 RESUMO DO SUB — ${sub}`);
+  linhas.push("");
+  linhas.push(`📌 Conferências: ${conferencias.length}`);
+  linhas.push(`📚 Capítulos conferidos: ${capitulos.length}`);
+  linhas.push(`✅ Aprovados: ${aprovados.length}`);
+  linhas.push(`❌ Reprovados: ${reprovados.length}`);
+  linhas.push("");
+
+  if (aprovados.length > 0) {
+    linhas.push("✅ APROVADOS:");
+    aprovados.forEach((capitulo) => {
+      linhas.push(`• ${capitulo.obraTitulo || "Obra"} — ${capitulo.titulo}`);
+    });
+    linhas.push("");
+  }
+
+  if (reprovados.length > 0) {
+    linhas.push("❌ REPROVADOS:");
+    reprovados.forEach((capitulo) => {
+      linhas.push(`• ${capitulo.obraTitulo || "Obra"} — ${capitulo.titulo}`);
+    });
+    linhas.push("");
+  }
+
+  linhas.push("©️ PROJ. LUNAR");
+
+  return linhas.join("\n");
+}
+
 export default function Historico() {
   const [historico, setHistorico] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -28,6 +71,15 @@ export default function Historico() {
 
   const [filtroSub, setFiltroSub] = useState("");
   const [filtroDia, setFiltroDia] = useState("");
+
+  const [editandoId, setEditandoId] = useState("");
+  const [editandoDados, setEditandoDados] = useState({
+    sub: "",
+    diaSemana: "",
+    nomeLeitor: "",
+    userLeitor: "",
+    adm: ""
+  });
 
   const historicoFiltrado = useMemo(() => {
     return historico.filter((item) => {
@@ -76,6 +128,80 @@ export default function Historico() {
   useEffect(() => {
     carregarHistorico();
   }, []);
+
+  function iniciarEdicao(conferencia) {
+    setEditandoId(conferencia.id);
+    setEditandoDados({
+      sub: conferencia.sub || "",
+      diaSemana: conferencia.diaSemana || "",
+      nomeLeitor: conferencia.nomeLeitor || "",
+      userLeitor: conferencia.userLeitor || "",
+      adm: conferencia.adm || ""
+    });
+  }
+
+  function cancelarEdicao() {
+    setEditandoId("");
+    setEditandoDados({
+      sub: "",
+      diaSemana: "",
+      nomeLeitor: "",
+      userLeitor: "",
+      adm: ""
+    });
+  }
+
+  async function salvarEdicao(conferencia) {
+    try {
+      const resumoAtualizado = gerarResumoConferencia({
+        sub: editandoDados.sub,
+        diaSemana: editandoDados.diaSemana,
+        nomeLeitor: editandoDados.nomeLeitor,
+        userLeitor: editandoDados.userLeitor,
+        adm: editandoDados.adm,
+        obraTitulo: conferencia.obraTitulo || "",
+        capitulos: conferencia.capitulos || []
+      });
+
+      await atualizarConferenciaNoHistorico(conferencia.id, {
+        ...editandoDados,
+        resumo: resumoAtualizado
+      });
+
+      setMensagem("Conferência atualizada com sucesso.");
+      cancelarEdicao();
+      await carregarHistorico();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao atualizar conferência.");
+    }
+  }
+
+  async function excluirConferencia(conferenciaId) {
+    const confirmar = window.confirm(
+      "Tem certeza que deseja excluir esta conferência do histórico?"
+    );
+
+    if (!confirmar) return;
+
+    try {
+      await excluirConferenciaDoHistorico(conferenciaId);
+      setMensagem("Conferência excluída com sucesso.");
+      await carregarHistorico();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao excluir conferência.");
+    }
+  }
+
+  async function copiarTexto(texto) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setMensagem("Texto copiado.");
+    } catch {
+      setMensagem("Não foi possível copiar o texto.");
+    }
+  }
 
   if (carregando) {
     return (
@@ -191,6 +317,9 @@ export default function Historico() {
         <div className="history-days-grid">
           {Object.entries(grupos).map(([sub, dias]) => {
             const diasDoSub = ordenarDias(Object.keys(dias));
+            const conferenciasDoSub = historicoFiltrado.filter(
+              (item) => item.sub === sub
+            );
 
             return (
               <div className="card" key={sub}>
@@ -199,6 +328,14 @@ export default function Historico() {
                     <h3>{sub}</h3>
                     <p>Conferências agrupadas por dia e membro.</p>
                   </div>
+
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => copiarTexto(gerarResumoPorSub(sub, conferenciasDoSub))}
+                  >
+                    Copiar resumo do sub
+                  </button>
                 </div>
 
                 {diasDoSub.map((dia) => (
@@ -215,72 +352,196 @@ export default function Historico() {
                           <div className="history-conference-list">
                             {conferencias.map((conferencia) => (
                               <div className="history-conference-card" key={conferencia.id}>
-                                <div className="history-conference-header">
-                                  <div>
-                                    <span>Leitor</span>
-                                    <strong>
-                                      {conferencia.nomeLeitor || "Não informado"}
-                                      {conferencia.userLeitor
-                                        ? ` • @${conferencia.userLeitor}`
-                                        : ""}
-                                    </strong>
-                                  </div>
+                                {editandoId === conferencia.id ? (
+                                  <div className="form-grid">
+                                    <div className="form-row-2">
+                                      <label>
+                                        Sub
+                                        <input
+                                          type="text"
+                                          value={editandoDados.sub}
+                                          onChange={(evento) =>
+                                            setEditandoDados((atual) => ({
+                                              ...atual,
+                                              sub: evento.target.value
+                                            }))
+                                          }
+                                        />
+                                      </label>
 
-                                  <div>
-                                    <span>ADM</span>
-                                    <strong>{conferencia.adm || "-"}</strong>
-                                  </div>
-                                </div>
+                                      <label>
+                                        Dia
+                                        <input
+                                          type="text"
+                                          value={editandoDados.diaSemana}
+                                          onChange={(evento) =>
+                                            setEditandoDados((atual) => ({
+                                              ...atual,
+                                              diaSemana: evento.target.value
+                                            }))
+                                          }
+                                        />
+                                      </label>
+                                    </div>
 
-                                <div className="history-chapters-list">
-                                  {(conferencia.capitulos || []).map((capitulo, index) => (
-                                    <div
-                                      className="history-chapter-item"
-                                      key={`${conferencia.id}-${capitulo.capituloId}-${index}`}
-                                    >
+                                    <div className="form-row-3">
+                                      <label>
+                                        Nome do leitor
+                                        <input
+                                          type="text"
+                                          value={editandoDados.nomeLeitor}
+                                          onChange={(evento) =>
+                                            setEditandoDados((atual) => ({
+                                              ...atual,
+                                              nomeLeitor: evento.target.value
+                                            }))
+                                          }
+                                        />
+                                      </label>
+
+                                      <label>
+                                        User
+                                        <input
+                                          type="text"
+                                          value={editandoDados.userLeitor}
+                                          onChange={(evento) =>
+                                            setEditandoDados((atual) => ({
+                                              ...atual,
+                                              userLeitor: evento.target.value
+                                            }))
+                                          }
+                                        />
+                                      </label>
+
+                                      <label>
+                                        ADM
+                                        <input
+                                          type="text"
+                                          value={editandoDados.adm}
+                                          onChange={(evento) =>
+                                            setEditandoDados((atual) => ({
+                                              ...atual,
+                                              adm: evento.target.value
+                                            }))
+                                          }
+                                        />
+                                      </label>
+                                    </div>
+
+                                    <div className="actions-row">
+                                      <button
+                                        type="button"
+                                        className="button-primary"
+                                        onClick={() => salvarEdicao(conferencia)}
+                                      >
+                                        Salvar edição
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        className="button-secondary"
+                                        onClick={cancelarEdicao}
+                                      >
+                                        Cancelar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <div className="history-conference-header">
                                       <div>
+                                        <span>Leitor</span>
                                         <strong>
-                                          {capitulo.obraTitulo
-                                            ? `${capitulo.obraTitulo} — `
+                                          {conferencia.nomeLeitor || "Não informado"}
+                                          {conferencia.userLeitor
+                                            ? ` • @${conferencia.userLeitor}`
                                             : ""}
-                                          {capitulo.titulo}
                                         </strong>
-
-                                        <span>
-                                          {capitulo.resultado?.estatisticas?.comentarios || 0}
-                                          {" "}comentário(s) • mínimo{" "}
-                                          {capitulo.resultado?.estatisticas?.minimoNecessario || 0}
-                                          {" "}• I:{" "}
-                                          {capitulo.resultado?.estatisticas?.distribuicao?.inicio || 0}
-                                          {" "}M:{" "}
-                                          {capitulo.resultado?.estatisticas?.distribuicao?.meio || 0}
-                                          {" "}F:{" "}
-                                          {capitulo.resultado?.estatisticas?.distribuicao?.fim || 0}
-                                          {" "}G:{" "}
-                                          {capitulo.resultado?.estatisticas?.distribuicao?.geral || 0}
-                                        </span>
                                       </div>
 
-                                      <span
-                                        className={`status-pill ${
-                                          capitulo.resultado?.aprovado
-                                            ? "status-approved"
-                                            : "status-rejected"
-                                        }`}
-                                      >
-                                        {capitulo.resultado?.aprovado
-                                          ? "Aprovado"
-                                          : "Reprovado"}
-                                      </span>
+                                      <div>
+                                        <span>ADM</span>
+                                        <strong>{conferencia.adm || "-"}</strong>
+                                      </div>
                                     </div>
-                                  ))}
-                                </div>
 
-                                {conferencia.resumo && (
-                                  <details className="comments-details">
-                                    <summary>Ver resumo copiado</summary>
-                                    <pre className="code-preview">{conferencia.resumo}</pre>
-                                  </details>
+                                    <div className="history-chapters-list">
+                                      {(conferencia.capitulos || []).map((capitulo, index) => (
+                                        <div
+                                          className="history-chapter-item"
+                                          key={`${conferencia.id}-${capitulo.capituloId}-${index}`}
+                                        >
+                                          <div>
+                                            <strong>
+                                              {capitulo.obraTitulo
+                                                ? `${capitulo.obraTitulo} — `
+                                                : ""}
+                                              {capitulo.titulo}
+                                            </strong>
+
+                                            <span>
+                                              {capitulo.resultado?.estatisticas?.comentarios || 0}
+                                              {" "}comentário(s) • mínimo{" "}
+                                              {capitulo.resultado?.estatisticas?.minimoNecessario || 0}
+                                              {" "}• I:{" "}
+                                              {capitulo.resultado?.estatisticas?.distribuicao?.inicio || 0}
+                                              {" "}M:{" "}
+                                              {capitulo.resultado?.estatisticas?.distribuicao?.meio || 0}
+                                              {" "}F:{" "}
+                                              {capitulo.resultado?.estatisticas?.distribuicao?.fim || 0}
+                                              {" "}G:{" "}
+                                              {capitulo.resultado?.estatisticas?.distribuicao?.geral || 0}
+                                            </span>
+                                          </div>
+
+                                          <span
+                                            className={`status-pill ${
+                                              capitulo.resultado?.aprovado
+                                                ? "status-approved"
+                                                : "status-rejected"
+                                            }`}
+                                          >
+                                            {capitulo.resultado?.aprovado
+                                              ? "Aprovado"
+                                              : "Reprovado"}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+
+                                    <div className="actions-row">
+                                      <button
+                                        type="button"
+                                        className="button-secondary"
+                                        onClick={() => copiarTexto(conferencia.resumo || "")}
+                                      >
+                                        Copiar resumo
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        className="button-secondary"
+                                        onClick={() => iniciarEdicao(conferencia)}
+                                      >
+                                        Editar
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        className="button-danger"
+                                        onClick={() => excluirConferencia(conferencia.id)}
+                                      >
+                                        Excluir
+                                      </button>
+                                    </div>
+
+                                    {conferencia.resumo && (
+                                      <details className="comments-details">
+                                        <summary>Ver resumo copiado</summary>
+                                        <pre className="code-preview">{conferencia.resumo}</pre>
+                                      </details>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             ))}

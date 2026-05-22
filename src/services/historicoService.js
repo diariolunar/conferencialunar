@@ -1,15 +1,36 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
+  doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
-  serverTimestamp
+  serverTimestamp,
+  setDoc,
+  where
 } from "firebase/firestore";
 
 import { db } from "../firebase/config.js";
+import { normalizarTexto } from "../utils/normalizarTexto.js";
 
 const HISTORICO_COLLECTION = "historicoConferencias";
+
+function gerarChaveCapitulo(capitulo = {}) {
+  return [
+    normalizarTexto(capitulo.obraId || capitulo.obraTitulo || ""),
+    normalizarTexto(capitulo.capituloId || capitulo.wattpadId || capitulo.titulo || "")
+  ].join("__");
+}
+
+function normalizarDia(dia = "") {
+  return normalizarTexto(dia);
+}
+
+function normalizarUser(user = "") {
+  return normalizarTexto(user).replace(/^@/, "");
+}
 
 export async function salvarConferenciaNoHistorico(conferencia) {
   const ref = await addDoc(collection(db, HISTORICO_COLLECTION), {
@@ -25,10 +46,43 @@ export async function salvarConferenciaNoHistorico(conferencia) {
     capitulos: conferencia.capitulos || [],
     textoFichaOriginal: conferencia.textoFichaOriginal || "",
     resumo: conferencia.resumo || "",
-    criadoEm: serverTimestamp()
+    criadoEm: serverTimestamp(),
+    atualizadoEm: serverTimestamp()
   });
 
   return ref.id;
+}
+
+export async function atualizarConferenciaNoHistorico(conferenciaId, dados) {
+  const ref = doc(db, HISTORICO_COLLECTION, conferenciaId);
+
+  await setDoc(
+    ref,
+    {
+      ...dados,
+      atualizadoEm: serverTimestamp()
+    },
+    { merge: true }
+  );
+}
+
+export async function excluirConferenciaDoHistorico(conferenciaId) {
+  const ref = doc(db, HISTORICO_COLLECTION, conferenciaId);
+  await deleteDoc(ref);
+}
+
+export async function buscarConferenciaPorId(conferenciaId) {
+  const ref = doc(db, HISTORICO_COLLECTION, conferenciaId);
+  const snapshot = await getDoc(ref);
+
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  return {
+    id: snapshot.id,
+    ...snapshot.data()
+  };
 }
 
 export async function listarHistoricoConferencias() {
@@ -45,9 +99,57 @@ export async function listarHistoricoConferencias() {
   }));
 }
 
-/* Compatibilidade com arquivos antigos, como Dashboard.jsx */
 export async function listarHistorico() {
   return listarHistoricoConferencias();
+}
+
+export async function verificarDuplicidadeConferencia(conferencia) {
+  const user = normalizarUser(conferencia.userLeitor);
+  const dia = normalizarDia(conferencia.diaSemana);
+
+  if (!user || !dia) {
+    return [];
+  }
+
+  const q = query(
+    collection(db, HISTORICO_COLLECTION),
+    where("userLeitor", "==", conferencia.userLeitor || ""),
+    where("diaSemana", "==", conferencia.diaSemana || "")
+  );
+
+  const snapshot = await getDocs(q);
+
+  const capitulosNovos = conferencia.capitulos || [];
+  const chavesNovas = new Set(capitulosNovos.map(gerarChaveCapitulo));
+
+  const duplicidades = [];
+
+  snapshot.docs.forEach((documento) => {
+    const item = {
+      id: documento.id,
+      ...documento.data()
+    };
+
+    const capitulosAntigos = item.capitulos || [];
+
+    capitulosAntigos.forEach((capituloAntigo) => {
+      const chaveAntiga = gerarChaveCapitulo(capituloAntigo);
+
+      if (chavesNovas.has(chaveAntiga)) {
+        duplicidades.push({
+          historicoId: item.id,
+          diaSemana: item.diaSemana,
+          userLeitor: item.userLeitor,
+          nomeLeitor: item.nomeLeitor,
+          obraTitulo: capituloAntigo.obraTitulo || item.obraTitulo || "",
+          capituloTitulo: capituloAntigo.titulo || "",
+          criadoEm: item.criadoEm || null
+        });
+      }
+    });
+  });
+
+  return duplicidades;
 }
 
 export function agruparHistoricoPorSubDiaMembro(historico = []) {
@@ -100,5 +202,115 @@ export function calcularResumoHistorico(lista = []) {
     reprovados,
     aprovadosManualmente,
     comentarios
+  };
+}
+
+export function calcularDashboardHistorico(lista = []) {
+  const capitulos = lista.flatMap((conferencia) =>
+    (conferencia.capitulos || []).map((capitulo) => ({
+      ...capitulo,
+      sub: conferencia.sub,
+      diaSemana: conferencia.diaSemana,
+      nomeLeitor: conferencia.nomeLeitor,
+      userLeitor: conferencia.userLeitor,
+      adm: conferencia.adm
+    }))
+  );
+
+  const porDia = {};
+  const porSub = {};
+  const porMembro = {};
+  const porObra = {};
+
+  capitulos.forEach((capitulo) => {
+    const dia = capitulo.diaSemana || "Dia não informado";
+    const sub = capitulo.sub || "Sub não informado";
+    const membro =
+      capitulo.nomeLeitor || capitulo.userLeitor || "Membro não informado";
+    const obra = capitulo.obraTitulo || "Obra não informada";
+
+    if (!porDia[dia]) {
+      porDia[dia] = {
+        total: 0,
+        aprovados: 0,
+        reprovados: 0,
+        comentarios: 0
+      };
+    }
+
+    if (!porSub[sub]) {
+      porSub[sub] = {
+        total: 0,
+        aprovados: 0,
+        reprovados: 0,
+        comentarios: 0
+      };
+    }
+
+    if (!porMembro[membro]) {
+      porMembro[membro] = {
+        total: 0,
+        aprovados: 0,
+        reprovados: 0,
+        comentarios: 0
+      };
+    }
+
+    if (!porObra[obra]) {
+      porObra[obra] = {
+        total: 0,
+        aprovados: 0,
+        reprovados: 0,
+        comentarios: 0
+      };
+    }
+
+    const aprovado = Boolean(capitulo.resultado?.aprovado);
+    const comentarios = Number(capitulo.resultado?.estatisticas?.comentarios || 0);
+
+    [porDia[dia], porSub[sub], porMembro[membro], porObra[obra]].forEach(
+      (grupo) => {
+        grupo.total += 1;
+        grupo.comentarios += comentarios;
+
+        if (aprovado) {
+          grupo.aprovados += 1;
+        } else {
+          grupo.reprovados += 1;
+        }
+      }
+    );
+  });
+
+  const rankingMembros = Object.entries(porMembro)
+    .map(([nome, dados]) => ({
+      nome,
+      ...dados
+    }))
+    .sort((a, b) => b.aprovados - a.aprovados || b.comentarios - a.comentarios);
+
+  const rankingObras = Object.entries(porObra)
+    .map(([nome, dados]) => ({
+      nome,
+      ...dados
+    }))
+    .sort((a, b) => b.total - a.total || b.comentarios - a.comentarios);
+
+  return {
+    totalConferencias: lista.length,
+    totalCapitulos: capitulos.length,
+    aprovados: capitulos.filter((capitulo) => capitulo.resultado?.aprovado).length,
+    reprovados: capitulos.filter(
+      (capitulo) => capitulo.resultado && !capitulo.resultado.aprovado
+    ).length,
+    comentarios: capitulos.reduce(
+      (total, capitulo) =>
+        total + Number(capitulo.resultado?.estatisticas?.comentarios || 0),
+      0
+    ),
+    porDia,
+    porSub,
+    rankingMembros,
+    rankingObras
   };
 }

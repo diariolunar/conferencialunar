@@ -70,42 +70,78 @@ function classificarPosicao(indice, total) {
   return "fim";
 }
 
+async function fetchComTimeout(url, opcoes = {}, timeout = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const resposta = await fetch(url, {
+      ...opcoes,
+      signal: controller.signal
+    });
+
+    return resposta;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchJsonSeguro(url, fallback = null) {
+  try {
+    const resposta = await fetchComTimeout(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        Accept: "application/json,text/plain,*/*",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
+      }
+    });
+
+    if (!resposta.ok) return fallback;
+
+    return await resposta.json();
+  } catch {
+    return fallback;
+  }
+}
+
+async function fetchTextoSeguro(url) {
+  try {
+    const resposta = await fetchComTimeout(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
+      }
+    });
+
+    if (!resposta.ok) {
+      throw new Error(`Wattpad respondeu com status ${resposta.status}.`);
+    }
+
+    return await resposta.text();
+  } catch (erro) {
+    if (erro.name === "AbortError") {
+      throw new Error("Tempo limite excedido ao buscar o texto do capítulo.");
+    }
+
+    throw new Error(
+      erro.message || "Não foi possível buscar o texto do capítulo no Wattpad."
+    );
+  }
+}
+
 async function fetchTextoCapitulo(capituloId) {
   const url = `https://www.wattpad.com/apiv2/?m=storytext&id=${capituloId}`;
-
-  const resposta = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
-    }
-  });
-
-  if (!resposta.ok) {
-    throw new Error("Não foi possível buscar o texto do capítulo.");
-  }
-
-  return resposta.text();
+  return fetchTextoSeguro(url);
 }
 
 async function fetchParagrafosApi(capituloId) {
   const url = `https://www.wattpad.com/v4/parts/${capituloId}/paragraphs`;
+  const dados = await fetchJsonSeguro(url, { paragraphs: [] });
 
-  const resposta = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-      Accept: "application/json,text/plain,*/*",
-      "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
-    }
-  });
-
-  if (!resposta.ok) return [];
-
-  const dados = await resposta.json();
-
-  return Array.isArray(dados.paragraphs) ? dados.paragraphs : [];
+  return Array.isArray(dados?.paragraphs) ? dados.paragraphs : [];
 }
 
 function montarUrlComentariosGerais(capituloId, afterResourceId = "") {
@@ -124,29 +160,19 @@ function montarUrlComentariosGerais(capituloId, afterResourceId = "") {
 
 async function fetchComentariosGeraisCapitulo(capituloId) {
   const todosComentarios = [];
+
   let afterResourceId = "";
   let pagina = 0;
 
-  while (pagina < 20) {
+  while (pagina < 12) {
     const url = montarUrlComentariosGerais(capituloId, afterResourceId);
+    const dados = await fetchJsonSeguro(url, { comments: [], pagination: {} });
 
-    const resposta = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-        Accept: "application/json,text/plain,*/*",
-        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
-      }
-    });
-
-    if (!resposta.ok) break;
-
-    const dados = await resposta.json();
-    const comentarios = Array.isArray(dados.comments) ? dados.comments : [];
+    const comentarios = Array.isArray(dados?.comments) ? dados.comments : [];
 
     todosComentarios.push(...comentarios);
 
-    const proximo = dados.pagination?.after?.resourceId;
+    const proximo = dados?.pagination?.after?.resourceId;
 
     if (!proximo || comentarios.length === 0) {
       break;
@@ -196,24 +222,16 @@ function criarMapaParagrafos(paragrafos = []) {
 }
 
 function extrairParagrafoIdDoComentario(comentario = {}, capituloId = "") {
-  if (comentario.resource?.namespace !== "paragraphs") {
-    return "";
-  }
+  if (comentario.resource?.namespace !== "paragraphs") return "";
 
   const resourceId = comentario.resource?.resourceId || "";
 
-  if (!resourceId) {
-    return "";
-  }
+  if (!resourceId) return "";
 
   return resourceId.replace(`${capituloId}_`, "");
 }
 
-function normalizarComentario({
-  comentario,
-  capituloId,
-  mapaParagrafos
-}) {
+function normalizarComentario({ comentario, capituloId, mapaParagrafos }) {
   const paragrafoId = extrairParagrafoIdDoComentario(comentario, capituloId);
   const paragrafo = paragrafoId ? mapaParagrafos.get(paragrafoId) : null;
 
@@ -326,7 +344,6 @@ export default async function handler(req, res) {
     );
 
     const comentariosTotaisCapitulo = comentariosGerais.length;
-
     const distribuicaoComentariosUsuario =
       contarDistribuicaoComentarios(comentariosUsuario);
 
@@ -339,14 +356,20 @@ export default async function handler(req, res) {
       comentariosUsuarioTotal: comentariosUsuario.length,
       distribuicaoComentarios: distribuicaoComentariosUsuario,
       comentariosUsuario,
-      paragrafosDetalhados: paragrafos
+      paragrafosDetalhados: paragrafos,
+      avisos: {
+        textoEncontrado: paragrafos.length > 0,
+        comentariosEncontrados: comentariosGerais.length > 0
+      }
     });
   } catch (erro) {
     console.error(erro);
 
     return res.status(500).json({
       erro: true,
-      mensagem: erro.message || "Erro interno ao buscar detalhes do capítulo."
+      mensagem:
+        erro.message ||
+        "Erro interno ao buscar detalhes do capítulo no Wattpad."
     });
   }
 }

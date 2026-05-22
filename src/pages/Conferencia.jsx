@@ -15,7 +15,10 @@ import {
 
 import { buscarRegrasPadrao } from "../services/regrasService.js";
 import { verificarLeiturasPreparadas } from "../services/conferenciaService.js";
-import { salvarConferenciaNoHistorico } from "../services/historicoService.js";
+import {
+  salvarConferenciaNoHistorico,
+  verificarDuplicidadeConferencia
+} from "../services/historicoService.js";
 
 const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
 
@@ -748,7 +751,7 @@ export default function Conferencia() {
         capitulos: resultadoVerificacao
       });
 
-      await salvarConferenciaNoHistorico({
+      const payloadHistorico = {
         sub: plano.subSelecionado,
         diaSemana: plano.diaSemana,
         nomeLeitor: plano.ficha.nomeLeitor,
@@ -764,7 +767,36 @@ export default function Conferencia() {
         capitulos: resultadoVerificacao,
         textoFichaOriginal: plano.ficha.textoOriginal,
         resumo
-      });
+      };
+
+      const duplicidades = await verificarDuplicidadeConferencia(
+        payloadHistorico
+      );
+
+      if (duplicidades.length > 0) {
+        const textoDuplicidade = duplicidades
+          .map(
+            (item) =>
+              `• ${item.obraTitulo} — ${item.capituloTitulo}`
+          )
+          .join("\n");
+
+        const continuar = window.confirm(
+          `ATENÇÃO!\n\n` +
+            `Já existem conferências salvas para:\n\n` +
+            `${textoDuplicidade}\n\n` +
+            `Deseja salvar mesmo assim?`
+        );
+
+        if (!continuar) {
+          setMensagem("Salvamento cancelado.");
+          return;
+        }
+      }
+
+      await salvarConferenciaNoHistorico(payloadHistorico);
+
+      setMensagem("Conferência salva com sucesso.");
 
       window.location.reload();
     } catch (erro) {

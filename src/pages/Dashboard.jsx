@@ -1,163 +1,221 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { listarHistorico } from "../services/historicoService.js";
-import { listarObras } from "../services/obrasService.js";
-import { listarSubs } from "../services/subsService.js";
+import {
+  calcularDashboardHistorico,
+  listarHistoricoConferencias
+} from "../services/historicoService.js";
+
+const DIAS_ORDEM = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
+
+function ordenarPorDia(lista = []) {
+  return [...lista].sort(([diaA], [diaB]) => {
+    const indexA = DIAS_ORDEM.indexOf(diaA);
+    const indexB = DIAS_ORDEM.indexOf(diaB);
+
+    if (indexA === -1 && indexB === -1) return diaA.localeCompare(diaB);
+    if (indexA === -1) return 1;
+    if (indexB === -1) return -1;
+
+    return indexA - indexB;
+  });
+}
 
 export default function Dashboard() {
   const [historico, setHistorico] = useState([]);
-  const [obras, setObras] = useState([]);
-  const [subs, setSubs] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [mensagem, setMensagem] = useState("");
 
+  const dashboard = useMemo(
+    () => calcularDashboardHistorico(historico),
+    [historico]
+  );
+
   async function carregarDashboard() {
     setCarregando(true);
+    setMensagem("");
 
     try {
-      const [historicoEncontrado, obrasEncontradas, subsEncontrados] =
-        await Promise.all([listarHistorico(), listarObras(), listarSubs()]);
-
-      setHistorico(historicoEncontrado);
-      setObras(obrasEncontradas);
-      setSubs(subsEncontrados);
+      const lista = await listarHistoricoConferencias();
+      setHistorico(lista);
     } catch (erro) {
       console.error(erro);
-      setMensagem("Erro ao carregar dados do dashboard.");
+      setMensagem("Erro ao carregar dashboard.");
     } finally {
       setCarregando(false);
     }
   }
 
-  const estatisticas = useMemo(() => {
-    const aprovadas = historico.filter((item) => item.aprovado).length;
-    const reprovadas = historico.filter((item) => !item.aprovado).length;
-
-    const comentarios = historico.reduce(
-      (total, item) => total + Number(item.totalComentarios || 0),
-      0
-    );
-
-    const capitulos = historico.reduce(
-      (total, item) => total + Number(item.totalCapitulos || 0),
-      0
-    );
-
-    const membros = new Set(
-      historico.map((item) => item.userLeitor || item.nomeLeitor).filter(Boolean)
-    );
-
-    return {
-      conferencias: historico.length,
-      aprovadas,
-      reprovadas,
-      comentarios,
-      capitulos,
-      membros: membros.size,
-      obras: obras.length,
-      subs: subs.length
-    };
-  }, [historico, obras, subs]);
-
-  const ultimasConferencias = historico.slice(0, 5);
-
   useEffect(() => {
     carregarDashboard();
   }, []);
 
+  if (carregando) {
+    return (
+      <section className="page">
+        <div className="card">
+          <div className="empty-state">Carregando dashboard...</div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="page">
-      <div className="page-title">
-        <h2>Início</h2>
-        <p>Visão geral do sistema Lunar Conferência Wattpad.</p>
+      <div className="page-title page-title-row">
+        <div>
+          <h2>Dashboard</h2>
+          <p>Visão geral das conferências, subs, leitores e obras.</p>
+        </div>
+
+        <button type="button" className="button-secondary" onClick={carregarDashboard}>
+          Atualizar
+        </button>
       </div>
 
       {mensagem && <div className="notice-card">{mensagem}</div>}
 
-      {carregando ? (
-        <div className="card">
-          <div className="empty-state">Carregando dashboard...</div>
-        </div>
-      ) : (
-        <>
-          <div className="grid-cards">
-            <div className="card stat-card">
-              <p>Total de conferências</p>
-              <strong>{estatisticas.conferencias}</strong>
-            </div>
+      <div className="card">
+        <h3>Resumo geral</h3>
 
-            <div className="card stat-card">
-              <p>Aprovadas</p>
-              <strong>{estatisticas.aprovadas}</strong>
-            </div>
-
-            <div className="card stat-card">
-              <p>Reprovadas</p>
-              <strong>{estatisticas.reprovadas}</strong>
-            </div>
-
-            <div className="card stat-card">
-              <p>Membros</p>
-              <strong>{estatisticas.membros}</strong>
-            </div>
-
-            <div className="card stat-card">
-              <p>Capítulos</p>
-              <strong>{estatisticas.capitulos}</strong>
-            </div>
-
-            <div className="card stat-card">
-              <p>Comentários</p>
-              <strong>{estatisticas.comentarios}</strong>
-            </div>
-
-            <div className="card stat-card">
-              <p>Obras cadastradas</p>
-              <strong>{estatisticas.obras}</strong>
-            </div>
-
-            <div className="card stat-card">
-              <p>Subs cadastrados</p>
-              <strong>{estatisticas.subs}</strong>
-            </div>
+        <div className="sub-stats-grid">
+          <div>
+            <span>Conferências</span>
+            <strong>{dashboard.totalConferencias}</strong>
           </div>
 
-          <div className="card wide-card">
-            <h3>Últimas conferências</h3>
+          <div>
+            <span>Capítulos</span>
+            <strong>{dashboard.totalCapitulos}</strong>
+          </div>
 
-            {ultimasConferencias.length === 0 ? (
-              <div className="empty-state">
-                Nenhuma conferência registrada ainda.
-              </div>
-            ) : (
-              <div className="dashboard-list">
-                {ultimasConferencias.map((conferencia) => (
-                  <div className="dashboard-list-item" key={conferencia.id}>
+          <div>
+            <span>Aprovados</span>
+            <strong>{dashboard.aprovados}</strong>
+          </div>
+
+          <div>
+            <span>Reprovados</span>
+            <strong>{dashboard.reprovados}</strong>
+          </div>
+
+          <div>
+            <span>Comentários válidos</span>
+            <strong>{dashboard.comentarios}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div className="dashboard-grid">
+        <div className="card">
+          <h3>Por dia</h3>
+
+          {Object.keys(dashboard.porDia || {}).length === 0 ? (
+            <div className="empty-state">Nenhum dado por dia.</div>
+          ) : (
+            <div className="dashboard-list">
+              {ordenarPorDia(Object.entries(dashboard.porDia)).map(
+                ([dia, dados]) => (
+                  <div className="dashboard-list-item" key={dia}>
                     <div>
-                      <strong>{conferencia.nomeLeitor || "Leitor não identificado"}</strong>
+                      <strong>{dia}</strong>
                       <span>
-                        {conferencia.sub || "Sem sub"} •{" "}
-                        {conferencia.diaSemana || "Sem dia"} •{" "}
-                        {conferencia.obraTitulo || "Obra não identificada"}
+                        {dados.total} capítulo(s) • {dados.comentarios} comentário(s)
                       </span>
                     </div>
 
-                    <span
-                      className={
-                        conferencia.aprovado
-                          ? "status-pill status-approved"
-                          : "status-pill status-rejected"
-                      }
-                    >
-                      {conferencia.aprovado ? "Aprovada" : "Reprovada"}
-                    </span>
+                    <div>
+                      ✅ {dados.aprovados} / ❌ {dados.reprovados}
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <h3>Por sub</h3>
+
+          {Object.keys(dashboard.porSub || {}).length === 0 ? (
+            <div className="empty-state">Nenhum dado por sub.</div>
+          ) : (
+            <div className="dashboard-list">
+              {Object.entries(dashboard.porSub)
+                .sort((a, b) => b[1].total - a[1].total)
+                .map(([sub, dados]) => (
+                  <div className="dashboard-list-item" key={sub}>
+                    <div>
+                      <strong>{sub}</strong>
+                      <span>
+                        {dados.total} capítulo(s) • {dados.comentarios} comentário(s)
+                      </span>
+                    </div>
+
+                    <div>
+                      ✅ {dados.aprovados} / ❌ {dados.reprovados}
+                    </div>
                   </div>
                 ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="dashboard-grid">
+        <div className="card">
+          <h3>Ranking de membros</h3>
+
+          {dashboard.rankingMembros.length === 0 ? (
+            <div className="empty-state">Nenhum membro ranqueado.</div>
+          ) : (
+            <div className="dashboard-list">
+              {dashboard.rankingMembros.slice(0, 15).map((membro, index) => (
+                <div className="dashboard-list-item" key={membro.nome}>
+                  <div>
+                    <strong>
+                      #{index + 1} {membro.nome}
+                    </strong>
+                    <span>
+                      {membro.total} capítulo(s) • {membro.comentarios} comentário(s)
+                    </span>
+                  </div>
+
+                  <div>
+                    ✅ {membro.aprovados} / ❌ {membro.reprovados}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <h3>Obras mais lidas</h3>
+
+          {dashboard.rankingObras.length === 0 ? (
+            <div className="empty-state">Nenhuma obra ranqueada.</div>
+          ) : (
+            <div className="dashboard-list">
+              {dashboard.rankingObras.slice(0, 15).map((obra, index) => (
+                <div className="dashboard-list-item" key={obra.nome}>
+                  <div>
+                    <strong>
+                      #{index + 1} {obra.nome}
+                    </strong>
+                    <span>
+                      {obra.total} capítulo(s) • {obra.comentarios} comentário(s)
+                    </span>
+                  </div>
+
+                  <div>
+                    ✅ {obra.aprovados} / ❌ {obra.reprovados}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
