@@ -31,9 +31,7 @@ export async function buscarObraPorId(obraId) {
   const ref = doc(db, OBRAS_COLLECTION, obraId);
   const snapshot = await getDoc(ref);
 
-  if (!snapshot.exists()) {
-    return null;
-  }
+  if (!snapshot.exists()) return null;
 
   return {
     id: snapshot.id,
@@ -44,9 +42,7 @@ export async function buscarObraPorId(obraId) {
 export async function buscarObraPorTitulo(titulo = "") {
   const tituloNormalizado = normalizarTexto(titulo);
 
-  if (!tituloNormalizado) {
-    return null;
-  }
+  if (!tituloNormalizado) return null;
 
   const q = query(
     collection(db, OBRAS_COLLECTION),
@@ -55,9 +51,7 @@ export async function buscarObraPorTitulo(titulo = "") {
 
   const snapshot = await getDocs(q);
 
-  if (snapshot.empty) {
-    return null;
-  }
+  if (snapshot.empty) return null;
 
   const documento = snapshot.docs[0];
 
@@ -68,9 +62,7 @@ export async function buscarObraPorTitulo(titulo = "") {
 }
 
 export async function buscarObraPorWattpadId(wattpadId = "") {
-  if (!wattpadId) {
-    return null;
-  }
+  if (!wattpadId) return null;
 
   const q = query(
     collection(db, OBRAS_COLLECTION),
@@ -79,9 +71,7 @@ export async function buscarObraPorWattpadId(wattpadId = "") {
 
   const snapshot = await getDocs(q);
 
-  if (snapshot.empty) {
-    return null;
-  }
+  if (snapshot.empty) return null;
 
   const documento = snapshot.docs[0];
 
@@ -92,18 +82,42 @@ export async function buscarObraPorWattpadId(wattpadId = "") {
 }
 
 export async function salvarObra(obra) {
+  const obraPorWattpadId = obra.wattpadId
+    ? await buscarObraPorWattpadId(obra.wattpadId)
+    : null;
+
+  const obraPorTitulo = !obraPorWattpadId
+    ? await buscarObraPorTitulo(obra.titulo || "")
+    : null;
+
+  const obraExistente = obraPorWattpadId || obraPorTitulo;
+
+  const dados = {
+    wattpadId: obra.wattpadId || obraExistente?.wattpadId || "",
+    titulo: obra.titulo || obraExistente?.titulo || "",
+    tituloNormalizado: normalizarTexto(obra.titulo || obraExistente?.titulo || ""),
+    autor: obra.autor || obraExistente?.autor || "",
+    autorNormalizado: normalizarTexto(obra.autor || obraExistente?.autor || ""),
+    userAutor: obra.userAutor || obraExistente?.userAutor || "",
+    userAutorNormalizado: normalizarTexto(
+      obra.userAutor || obraExistente?.userAutor || ""
+    ),
+    descricao: obra.descricao || obraExistente?.descricao || "",
+    capa: obra.capa || obraExistente?.capa || "",
+    link: obra.link || obraExistente?.link || "",
+    atualizadoEm: serverTimestamp()
+  };
+
+  if (obraExistente?.id) {
+    const ref = doc(db, OBRAS_COLLECTION, obraExistente.id);
+
+    await setDoc(ref, dados, { merge: true });
+
+    return obraExistente.id;
+  }
+
   const ref = await addDoc(collection(db, OBRAS_COLLECTION), {
-    wattpadId: obra.wattpadId || "",
-    titulo: obra.titulo || "",
-    tituloNormalizado: normalizarTexto(obra.titulo || ""),
-    autor: obra.autor || "",
-    autorNormalizado: normalizarTexto(obra.autor || ""),
-    userAutor: obra.userAutor || "",
-    userAutorNormalizado: normalizarTexto(obra.userAutor || ""),
-    descricao: obra.descricao || "",
-    capa: obra.capa || "",
-    link: obra.link || "",
-    atualizadoEm: serverTimestamp(),
+    ...dados,
     criadoEm: serverTimestamp()
   });
 
@@ -113,17 +127,30 @@ export async function salvarObra(obra) {
 export async function atualizarObra(obraId, dados) {
   const ref = doc(db, OBRAS_COLLECTION, obraId);
 
-  await setDoc(
-    ref,
-    {
-      ...dados,
-      tituloNormalizado: normalizarTexto(dados.titulo || ""),
-      autorNormalizado: normalizarTexto(dados.autor || ""),
-      userAutorNormalizado: normalizarTexto(dados.userAutor || ""),
-      atualizadoEm: serverTimestamp()
-    },
-    { merge: true }
-  );
+  const dadosLimpos = {
+    ...dados,
+    atualizadoEm: serverTimestamp()
+  };
+
+  if (dados.titulo !== undefined) {
+    dadosLimpos.tituloNormalizado = normalizarTexto(dados.titulo || "");
+  }
+
+  if (dados.autor !== undefined) {
+    dadosLimpos.autorNormalizado = normalizarTexto(dados.autor || "");
+  }
+
+  if (dados.userAutor !== undefined) {
+    dadosLimpos.userAutorNormalizado = normalizarTexto(dados.userAutor || "");
+  }
+
+  Object.keys(dadosLimpos).forEach((chave) => {
+    if (dadosLimpos[chave] === undefined) {
+      delete dadosLimpos[chave];
+    }
+  });
+
+  await setDoc(ref, dadosLimpos, { merge: true });
 }
 
 export async function excluirObra(obraId) {
