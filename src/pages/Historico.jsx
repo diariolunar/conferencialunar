@@ -25,6 +25,10 @@ function ordenarDias(dias = []) {
   });
 }
 
+function limparNomeMembro(membro = "") {
+  return String(membro || "").split("|||")[0] || "Membro não informado";
+}
+
 function gerarResumoPorSub(sub = "", conferencias = []) {
   const capitulos = conferencias.flatMap((item) => item.capitulos || []);
 
@@ -343,211 +347,218 @@ export default function Historico() {
                     <h4>{dia}</h4>
 
                     <div className="history-members-list">
-                      {Object.entries(dias[dia]).map(([membro, conferencias]) => (
-                        <details className="history-member-details" key={`${sub}-${dia}-${membro}`}>
-                          <summary>
-                            {membro} — {conferencias.length} conferência(s)
-                          </summary>
+                      {Object.entries(dias[dia]).map(([membro, conferencias]) => {
+                        const membroLabel = limparNomeMembro(membro);
 
-                          <div className="history-conference-list">
-                            {conferencias.map((conferencia) => (
-                              <div className="history-conference-card" key={conferencia.id}>
-                                {editandoId === conferencia.id ? (
-                                  <div className="form-grid">
-                                    <div className="form-row-2">
-                                      <label>
-                                        Sub
-                                        <input
-                                          type="text"
-                                          value={editandoDados.sub}
-                                          onChange={(evento) =>
-                                            setEditandoDados((atual) => ({
-                                              ...atual,
-                                              sub: evento.target.value
-                                            }))
-                                          }
-                                        />
-                                      </label>
+                        return (
+                          <details
+                            className="history-member-details"
+                            key={`${sub}-${dia}-${membro}`}
+                          >
+                            <summary>
+                              {membroLabel} — {conferencias.length} conferência(s)
+                            </summary>
 
-                                      <label>
-                                        Dia
-                                        <input
-                                          type="text"
-                                          value={editandoDados.diaSemana}
-                                          onChange={(evento) =>
-                                            setEditandoDados((atual) => ({
-                                              ...atual,
-                                              diaSemana: evento.target.value
-                                            }))
-                                          }
-                                        />
-                                      </label>
-                                    </div>
+                            <div className="history-conference-list">
+                              {conferencias.map((conferencia) => (
+                                <div className="history-conference-card" key={conferencia.id}>
+                                  {editandoId === conferencia.id ? (
+                                    <div className="form-grid">
+                                      <div className="form-row-2">
+                                        <label>
+                                          Sub
+                                          <input
+                                            type="text"
+                                            value={editandoDados.sub}
+                                            onChange={(evento) =>
+                                              setEditandoDados((atual) => ({
+                                                ...atual,
+                                                sub: evento.target.value
+                                              }))
+                                            }
+                                          />
+                                        </label>
 
-                                    <div className="form-row-3">
-                                      <label>
-                                        Nome do leitor
-                                        <input
-                                          type="text"
-                                          value={editandoDados.nomeLeitor}
-                                          onChange={(evento) =>
-                                            setEditandoDados((atual) => ({
-                                              ...atual,
-                                              nomeLeitor: evento.target.value
-                                            }))
-                                          }
-                                        />
-                                      </label>
-
-                                      <label>
-                                        User
-                                        <input
-                                          type="text"
-                                          value={editandoDados.userLeitor}
-                                          onChange={(evento) =>
-                                            setEditandoDados((atual) => ({
-                                              ...atual,
-                                              userLeitor: evento.target.value
-                                            }))
-                                          }
-                                        />
-                                      </label>
-
-                                      <label>
-                                        ADM
-                                        <input
-                                          type="text"
-                                          value={editandoDados.adm}
-                                          onChange={(evento) =>
-                                            setEditandoDados((atual) => ({
-                                              ...atual,
-                                              adm: evento.target.value
-                                            }))
-                                          }
-                                        />
-                                      </label>
-                                    </div>
-
-                                    <div className="actions-row">
-                                      <button
-                                        type="button"
-                                        className="button-primary"
-                                        onClick={() => salvarEdicao(conferencia)}
-                                      >
-                                        Salvar edição
-                                      </button>
-
-                                      <button
-                                        type="button"
-                                        className="button-secondary"
-                                        onClick={cancelarEdicao}
-                                      >
-                                        Cancelar
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <>
-                                    <div className="history-conference-header">
-                                      <div>
-                                        <span>Leitor</span>
-                                        <strong>
-                                          {conferencia.nomeLeitor || "Não informado"}
-                                          {conferencia.userLeitor
-                                            ? ` • @${conferencia.userLeitor}`
-                                            : ""}
-                                        </strong>
+                                        <label>
+                                          Dia
+                                          <input
+                                            type="text"
+                                            value={editandoDados.diaSemana}
+                                            onChange={(evento) =>
+                                              setEditandoDados((atual) => ({
+                                                ...atual,
+                                                diaSemana: evento.target.value
+                                              }))
+                                            }
+                                          />
+                                        </label>
                                       </div>
 
-                                      <div>
-                                        <span>ADM</span>
-                                        <strong>{conferencia.adm || "-"}</strong>
-                                      </div>
-                                    </div>
+                                      <div className="form-row-3">
+                                        <label>
+                                          Nome do leitor
+                                          <input
+                                            type="text"
+                                            value={editandoDados.nomeLeitor}
+                                            onChange={(evento) =>
+                                              setEditandoDados((atual) => ({
+                                                ...atual,
+                                                nomeLeitor: evento.target.value
+                                              }))
+                                            }
+                                          />
+                                        </label>
 
-                                    <div className="history-chapters-list">
-                                      {(conferencia.capitulos || []).map((capitulo, index) => (
-                                        <div
-                                          className="history-chapter-item"
-                                          key={`${conferencia.id}-${capitulo.capituloId}-${index}`}
+                                        <label>
+                                          User
+                                          <input
+                                            type="text"
+                                            value={editandoDados.userLeitor}
+                                            onChange={(evento) =>
+                                              setEditandoDados((atual) => ({
+                                                ...atual,
+                                                userLeitor: evento.target.value
+                                              }))
+                                            }
+                                          />
+                                        </label>
+
+                                        <label>
+                                          ADM
+                                          <input
+                                            type="text"
+                                            value={editandoDados.adm}
+                                            onChange={(evento) =>
+                                              setEditandoDados((atual) => ({
+                                                ...atual,
+                                                adm: evento.target.value
+                                              }))
+                                            }
+                                          />
+                                        </label>
+                                      </div>
+
+                                      <div className="actions-row">
+                                        <button
+                                          type="button"
+                                          className="button-primary"
+                                          onClick={() => salvarEdicao(conferencia)}
                                         >
-                                          <div>
-                                            <strong>
-                                              {capitulo.obraTitulo
-                                                ? `${capitulo.obraTitulo} — `
-                                                : ""}
-                                              {capitulo.titulo}
-                                            </strong>
+                                          Salvar edição
+                                        </button>
 
-                                            <span>
-                                              {capitulo.resultado?.estatisticas?.comentarios || 0}
-                                              {" "}comentário(s) • mínimo{" "}
-                                              {capitulo.resultado?.estatisticas?.minimoNecessario || 0}
-                                              {" "}• I:{" "}
-                                              {capitulo.resultado?.estatisticas?.distribuicao?.inicio || 0}
-                                              {" "}M:{" "}
-                                              {capitulo.resultado?.estatisticas?.distribuicao?.meio || 0}
-                                              {" "}F:{" "}
-                                              {capitulo.resultado?.estatisticas?.distribuicao?.fim || 0}
-                                              {" "}G:{" "}
-                                              {capitulo.resultado?.estatisticas?.distribuicao?.geral || 0}
+                                        <button
+                                          type="button"
+                                          className="button-secondary"
+                                          onClick={cancelarEdicao}
+                                        >
+                                          Cancelar
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="history-conference-header">
+                                        <div>
+                                          <span>Leitor</span>
+                                          <strong>
+                                            {conferencia.nomeLeitor || "Não informado"}
+                                            {conferencia.userLeitor
+                                              ? ` • @${conferencia.userLeitor}`
+                                              : ""}
+                                          </strong>
+                                        </div>
+
+                                        <div>
+                                          <span>ADM</span>
+                                          <strong>{conferencia.adm || "-"}</strong>
+                                        </div>
+                                      </div>
+
+                                      <div className="history-chapters-list">
+                                        {(conferencia.capitulos || []).map((capitulo, index) => (
+                                          <div
+                                            className="history-chapter-item"
+                                            key={`${conferencia.id}-${capitulo.capituloId}-${index}`}
+                                          >
+                                            <div>
+                                              <strong>
+                                                {capitulo.obraTitulo
+                                                  ? `${capitulo.obraTitulo} — `
+                                                  : ""}
+                                                {capitulo.titulo}
+                                              </strong>
+
+                                              <span>
+                                                {capitulo.resultado?.estatisticas?.comentarios || 0}
+                                                {" "}comentário(s) • mínimo{" "}
+                                                {capitulo.resultado?.estatisticas?.minimoNecessario || 0}
+                                                {" "}• I:{" "}
+                                                {capitulo.resultado?.estatisticas?.distribuicao?.inicio || 0}
+                                                {" "}M:{" "}
+                                                {capitulo.resultado?.estatisticas?.distribuicao?.meio || 0}
+                                                {" "}F:{" "}
+                                                {capitulo.resultado?.estatisticas?.distribuicao?.fim || 0}
+                                                {" "}G:{" "}
+                                                {capitulo.resultado?.estatisticas?.distribuicao?.geral || 0}
+                                              </span>
+                                            </div>
+
+                                            <span
+                                              className={`status-pill ${
+                                                capitulo.resultado?.aprovado
+                                                  ? "status-approved"
+                                                  : "status-rejected"
+                                              }`}
+                                            >
+                                              {capitulo.resultado?.aprovado
+                                                ? "Aprovado"
+                                                : "Reprovado"}
                                             </span>
                                           </div>
+                                        ))}
+                                      </div>
 
-                                          <span
-                                            className={`status-pill ${
-                                              capitulo.resultado?.aprovado
-                                                ? "status-approved"
-                                                : "status-rejected"
-                                            }`}
-                                          >
-                                            {capitulo.resultado?.aprovado
-                                              ? "Aprovado"
-                                              : "Reprovado"}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
+                                      <div className="actions-row">
+                                        <button
+                                          type="button"
+                                          className="button-secondary"
+                                          onClick={() => copiarTexto(conferencia.resumo || "")}
+                                        >
+                                          Copiar resumo
+                                        </button>
 
-                                    <div className="actions-row">
-                                      <button
-                                        type="button"
-                                        className="button-secondary"
-                                        onClick={() => copiarTexto(conferencia.resumo || "")}
-                                      >
-                                        Copiar resumo
-                                      </button>
+                                        <button
+                                          type="button"
+                                          className="button-secondary"
+                                          onClick={() => iniciarEdicao(conferencia)}
+                                        >
+                                          Editar
+                                        </button>
 
-                                      <button
-                                        type="button"
-                                        className="button-secondary"
-                                        onClick={() => iniciarEdicao(conferencia)}
-                                      >
-                                        Editar
-                                      </button>
+                                        <button
+                                          type="button"
+                                          className="button-danger"
+                                          onClick={() => excluirConferencia(conferencia.id)}
+                                        >
+                                          Excluir
+                                        </button>
+                                      </div>
 
-                                      <button
-                                        type="button"
-                                        className="button-danger"
-                                        onClick={() => excluirConferencia(conferencia.id)}
-                                      >
-                                        Excluir
-                                      </button>
-                                    </div>
-
-                                    {conferencia.resumo && (
-                                      <details className="comments-details">
-                                        <summary>Ver resumo copiado</summary>
-                                        <pre className="code-preview">{conferencia.resumo}</pre>
-                                      </details>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      ))}
+                                      {conferencia.resumo && (
+                                        <details className="comments-details">
+                                          <summary>Ver resumo copiado</summary>
+                                          <pre className="code-preview">{conferencia.resumo}</pre>
+                                        </details>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
