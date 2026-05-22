@@ -6,6 +6,22 @@ import {
   buscarSubPorId
 } from "../services/subsService.js";
 
+function transformarImagemDrive(url = "") {
+  const texto = String(url || "").trim();
+
+  if (!texto.includes("drive.google.com")) {
+    return texto;
+  }
+
+  const match = texto.match(/\/d\/([^/]+)/);
+
+  if (!match?.[1]) {
+    return texto;
+  }
+
+  return `https://lh3.googleusercontent.com/d/${match[1]}`;
+}
+
 export default function SubDetalhes() {
   const { subId } = useParams();
 
@@ -42,6 +58,7 @@ export default function SubDetalhes() {
       }
 
       setSub(encontrado);
+
       setFormSub({
         nome: encontrado.nome || "",
         codigo: encontrado.codigo || "",
@@ -148,7 +165,10 @@ export default function SubDetalhes() {
       >
         <div className="sub-hero-image">
           {sub.imagemPerfil ? (
-            <img src={sub.imagemPerfil} alt={sub.nome} />
+            <img
+              src={transformarImagemDrive(sub.imagemPerfil)}
+              alt={sub.nome}
+            />
           ) : (
             <span>Sem imagem</span>
           )}

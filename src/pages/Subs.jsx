@@ -6,6 +6,22 @@ import {
   salvarOuAtualizarSub
 } from "../services/subsService.js";
 
+function transformarImagemDrive(url = "") {
+  const texto = String(url || "").trim();
+
+  if (!texto.includes("drive.google.com")) {
+    return texto;
+  }
+
+  const match = texto.match(/\/d\/([^/]+)/);
+
+  if (!match?.[1]) {
+    return texto;
+  }
+
+  return `https://lh3.googleusercontent.com/d/${match[1]}`;
+}
+
 export default function Subs() {
   const [subs, setSubs] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -139,7 +155,10 @@ export default function Subs() {
               <div className="work-list-card" key={sub.id}>
                 <div className="work-list-cover">
                   {sub.imagemPerfil ? (
-                    <img src={sub.imagemPerfil} alt={sub.nome} />
+                    <img
+                      src={transformarImagemDrive(sub.imagemPerfil)}
+                      alt={sub.nome}
+                    />
                   ) : (
                     <div className="obra-cover-placeholder">Sem imagem</div>
                   )}
