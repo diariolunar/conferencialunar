@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
@@ -127,6 +128,20 @@ export async function listarObras() {
     id: documento.id,
     ...documento.data()
   }));
+}
+
+export async function buscarObraPorId(obraId) {
+  const ref = doc(db, OBRAS_COLLECTION, obraId);
+  const snapshot = await getDoc(ref);
+
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  return {
+    id: snapshot.id,
+    ...snapshot.data()
+  };
 }
 
 export async function encontrarObraParecida(titulo = "") {
