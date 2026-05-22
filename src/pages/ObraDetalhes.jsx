@@ -7,15 +7,43 @@ import {
 } from "../services/obrasService.js";
 
 import {
+  atualizarCapituloDaObra,
   atualizarDetalhesCapitulo,
   excluirCapitulo,
   listarCapitulosDaObra,
-  salvarCapituloDaObra
+  salvarCapituloDaObra,
+  salvarCapitulosDaObra
 } from "../services/capitulosService.js";
 
 import { buscarDetalhesCapituloWattpad } from "../services/capitulosDetalhesService.js";
 
 const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
+
+function separarCapitulosEmLote(texto = "", ordemInicial = 1) {
+  return String(texto || "")
+    .split(/\r?\n/)
+    .map((linha) => linha.trim())
+    .filter(Boolean)
+    .map((linha, index) => {
+      const partes = linha.split("|").map((parte) => parte.trim());
+
+      return {
+        titulo: partes[0] || `Capítulo ${ordemInicial + index}`,
+        link: partes[1] || "",
+        tipo: TIPOS_CAPITULO.includes(partes[2]) ? partes[2] : "Normal",
+        palavras: 0,
+        paragrafos: 0,
+        comentariosTotais: 0,
+        distribuicaoComentarios: {
+          inicio: 0,
+          meio: 0,
+          fim: 0,
+          geral: 0
+        },
+        ordem: ordemInicial + index
+      };
+    });
+}
 
 export default function ObraDetalhes() {
   const { obraId } = useParams();
@@ -36,11 +64,15 @@ export default function ObraDetalhes() {
   const [ordem, setOrdem] = useState("");
   const [tipo, setTipo] = useState("Normal");
 
+  const [capitulosEmLote, setCapitulosEmLote] = useState("");
+
   const [carregando, setCarregando] = useState(true);
   const [salvandoObra, setSalvandoObra] = useState(false);
   const [salvandoCapitulo, setSalvandoCapitulo] = useState(false);
+  const [salvandoLote, setSalvandoLote] = useState(false);
   const [atualizandoCapituloId, setAtualizandoCapituloId] = useState("");
   const [atualizandoTodos, setAtualizandoTodos] = useState(false);
+  const [alterandoTipoId, setAlterandoTipoId] = useState("");
 
   const [mensagem, setMensagem] = useState("");
 
@@ -144,6 +176,60 @@ export default function ObraDetalhes() {
     }
   }
 
+  async function handleSalvarCapitulosEmLote(evento) {
+    evento.preventDefault();
+
+    if (!capitulosEmLote.trim()) {
+      setMensagem("Cole ao menos um capítulo para cadastrar em lote.");
+      return;
+    }
+
+    setSalvandoLote(true);
+    setMensagem("");
+
+    try {
+      const ordemInicial = capitulos.length + 1;
+      const capitulosNovos = separarCapitulosEmLote(
+        capitulosEmLote,
+        ordemInicial
+      );
+
+      const resultado = await salvarCapitulosDaObra(obraId, capitulosNovos);
+
+      setCapitulosEmLote("");
+
+      setMensagem(
+        `${resultado.total} capítulo(s) processado(s): ${resultado.criados} criado(s), ${resultado.atualizados} atualizado(s).`
+      );
+
+      await carregarDados();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao salvar capítulos em lote.");
+    } finally {
+      setSalvandoLote(false);
+    }
+  }
+
+  async function handleAlterarTipoCapitulo(capitulo, novoTipo) {
+    setAlterandoTipoId(capitulo.id);
+    setMensagem("");
+
+    try {
+      await atualizarCapituloDaObra(obraId, capitulo.id, {
+        tipo: novoTipo
+      });
+
+      setMensagem("Tipo do capítulo atualizado.");
+      await carregarDados();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao atualizar tipo do capítulo.");
+    } finally {
+      setAlterandoTipoId("");
+    }
+  }
+
   async function handleExcluirCapitulo(capituloId) {
     const confirmar = window.confirm(
       "Tem certeza que deseja excluir este capítulo?"
@@ -203,27 +289,37 @@ export default function ObraDetalhes() {
 
     try {
       let atualizados = 0;
+      let falhas = 0;
 
       for (const capitulo of capitulos) {
         if (!capitulo.link && !capitulo.wattpadId) {
+          falhas += 1;
           continue;
         }
 
         setMensagem(
-          `Atualizando ${atualizados + 1}/${capitulos.length}: ${capitulo.titulo}`
+          `Atualizando ${atualizados + falhas + 1}/${capitulos.length}: ${capitulo.titulo}`
         );
 
-        const detalhes = await buscarDetalhesCapituloWattpad({
-          capituloId: capitulo.wattpadId,
-          linkCapitulo: capitulo.link
-        });
+        try {
+          const detalhes = await buscarDetalhesCapituloWattpad({
+            capituloId: capitulo.wattpadId,
+            linkCapitulo: capitulo.link
+          });
 
-        await atualizarDetalhesCapitulo(obraId, capitulo.id, detalhes);
+          await atualizarDetalhesCapitulo(obraId, capitulo.id, detalhes);
 
-        atualizados += 1;
+          atualizados += 1;
+        } catch (erro) {
+          console.error("Erro ao atualizar capítulo:", capitulo.titulo, erro);
+          falhas += 1;
+        }
       }
 
-      setMensagem(`${atualizados} capítulo(s) atualizados com sucesso.`);
+      setMensagem(
+        `${atualizados} capítulo(s) atualizado(s). ${falhas} capítulo(s) com falha ou sem link.`
+      );
+
       await carregarDados();
     } catch (erro) {
       console.error(erro);
@@ -456,6 +552,32 @@ export default function ObraDetalhes() {
       </div>
 
       <div className="card">
+        <h3>Cadastrar vários capítulos</h3>
+
+        <form className="form-grid" onSubmit={handleSalvarCapitulosEmLote}>
+          <label>
+            Capítulos em lote
+            <textarea
+              rows="8"
+              value={capitulosEmLote}
+              onChange={(evento) => setCapitulosEmLote(evento.target.value)}
+              placeholder={
+                "Um por linha, neste formato:\nTítulo do capítulo | link do capítulo | tipo\n\nExemplo:\nCapítulo 1 | https://www.wattpad.com/123456 | Normal\nEspecial do Lobo | https://www.wattpad.com/789101 | Especial"
+              }
+            />
+          </label>
+
+          <div className="notice-card">
+            Se o capítulo já existir, ele será atualizado em vez de duplicado.
+          </div>
+
+          <button type="submit" className="button-primary" disabled={salvandoLote}>
+            {salvandoLote ? "Salvando..." : "Salvar capítulos em lote"}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
         <div className="page-title-row">
           <div>
             <h3>Capítulos cadastrados</h3>
@@ -503,7 +625,27 @@ export default function ObraDetalhes() {
 
                     <td>{capitulo.titulo}</td>
 
-                    <td>{capitulo.tipo || "Normal"}</td>
+                    <td>
+                      <select
+                        value={capitulo.tipo || "Normal"}
+                        onChange={(evento) =>
+                          handleAlterarTipoCapitulo(
+                            capitulo,
+                            evento.target.value
+                          )
+                        }
+                        disabled={
+                          atualizandoTodos ||
+                          alterandoTipoId === capitulo.id
+                        }
+                      >
+                        {TIPOS_CAPITULO.map((tipoCapitulo) => (
+                          <option key={tipoCapitulo} value={tipoCapitulo}>
+                            {tipoCapitulo}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
 
                     <td>{capitulo.palavras || 0}</td>
 
@@ -514,7 +656,8 @@ export default function ObraDetalhes() {
                     <td>
                       I: {capitulo.distribuicaoComentarios?.inicio || 0} / M:{" "}
                       {capitulo.distribuicaoComentarios?.meio || 0} / F:{" "}
-                      {capitulo.distribuicaoComentarios?.fim || 0}
+                      {capitulo.distribuicaoComentarios?.fim || 0} / G:{" "}
+                      {capitulo.distribuicaoComentarios?.geral || 0}
                     </td>
 
                     <td>

@@ -67,7 +67,6 @@ function similaridadeAproximada(a = "", b = "") {
   if (textoA === textoB) return 1;
 
   const maior = Math.max(textoA.length, textoB.length);
-
   if (maior === 0) return 0;
 
   const distancia = distanciaLevenshtein(textoA, textoB);
@@ -111,10 +110,10 @@ function calcularSimilaridadeTokens(textoA = "", textoB = "") {
 }
 
 function calcularSimilaridadeGeral(textoA = "", textoB = "") {
-  const tokens = calcularSimilaridadeTokens(textoA, textoB);
-  const aproximada = similaridadeAproximada(textoA, textoB);
-
-  return Math.max(tokens, aproximada);
+  return Math.max(
+    calcularSimilaridadeTokens(textoA, textoB),
+    similaridadeAproximada(textoA, textoB)
+  );
 }
 
 function extrairNumero(texto = "") {
@@ -216,8 +215,77 @@ function gerarIdCapitulo(capitulo, index = 0) {
   return `${String(ordem).padStart(4, "0")}-${baseTitulo || "capitulo"}`;
 }
 
+function limparDadosCapitulo(capitulo = {}, index = 0) {
+  const titulo = capitulo.titulo || `Capítulo ${index + 1}`;
+
+  return {
+    wattpadId: capitulo.wattpadId || "",
+    titulo,
+    tituloNormalizado: normalizarTexto(titulo),
+    link: capitulo.link || "",
+    palavras: Number(capitulo.palavras || 0),
+    paragrafos: Number(capitulo.paragrafos || 0),
+    comentariosTotais: Number(capitulo.comentariosTotais || 0),
+    distribuicaoComentarios: capitulo.distribuicaoComentarios || {
+      inicio: 0,
+      meio: 0,
+      fim: 0,
+      geral: 0
+    },
+    ordem: Number(capitulo.ordem || index + 1),
+    tipo: capitulo.tipo || "Normal",
+    atualizadoEm: serverTimestamp()
+  };
+}
+
+function encontrarCapituloExistente(capitulos = [], capituloNovo = {}) {
+  if (capituloNovo.id) {
+    const porId = capitulos.find(
+      (capitulo) => String(capitulo.id) === String(capituloNovo.id)
+    );
+
+    if (porId) return porId;
+  }
+
+  if (capituloNovo.wattpadId) {
+    const porWattpadId = capitulos.find(
+      (capitulo) =>
+        String(capitulo.wattpadId || capitulo.id) ===
+        String(capituloNovo.wattpadId)
+    );
+
+    if (porWattpadId) return porWattpadId;
+  }
+
+  const tituloNovo = normalizarTexto(capituloNovo.titulo || "");
+
+  if (tituloNovo) {
+    const porTituloExato = capitulos.find(
+      (capitulo) => normalizarTexto(capitulo.titulo || "") === tituloNovo
+    );
+
+    if (porTituloExato) return porTituloExato;
+
+    const candidatos = capitulos
+      .map((capitulo) => ({
+        capitulo,
+        pontos: pontuarCapitulo(capitulo, capituloNovo.titulo || "")
+      }))
+      .sort((a, b) => b.pontos - a.pontos);
+
+    if (candidatos[0]?.pontos >= 80) {
+      return candidatos[0].capitulo;
+    }
+  }
+
+  return null;
+}
+
 export async function salvarCapituloDaObra(obraId, capitulo, index = 0) {
-  const capituloId = gerarIdCapitulo(capitulo, index);
+  const capitulosExistentes = await listarCapitulosDaObra(obraId);
+  const existente = encontrarCapituloExistente(capitulosExistentes, capitulo);
+
+  const capituloId = existente?.id || gerarIdCapitulo(capitulo, index);
 
   const ref = doc(
     db,
@@ -227,45 +295,53 @@ export async function salvarCapituloDaObra(obraId, capitulo, index = 0) {
     capituloId
   );
 
-  await setDoc(
-    ref,
-    {
-      wattpadId: capitulo.wattpadId || "",
-      titulo: capitulo.titulo || "",
-      tituloNormalizado: normalizarTexto(capitulo.titulo || ""),
-      link: capitulo.link || "",
-      palavras: Number(capitulo.palavras || 0),
-      paragrafos: Number(capitulo.paragrafos || 0),
-      comentariosTotais: Number(capitulo.comentariosTotais || 0),
-      distribuicaoComentarios: capitulo.distribuicaoComentarios || {
-        inicio: 0,
-        meio: 0,
-        fim: 0,
-        geral: 0
-      },
-      ordem: Number(capitulo.ordem || index + 1),
-      tipo: capitulo.tipo || "Normal",
-      atualizadoEm: serverTimestamp()
-    },
-    { merge: true }
-  );
+  await setDoc(ref, limparDadosCapitulo(capitulo, index), { merge: true });
 
   return capituloId;
 }
 
 export async function salvarCapitulosDaObra(obraId, capitulos = []) {
-  const promessas = capitulos.map((capitulo, index) =>
-    salvarCapituloDaObra(
-      obraId,
-      {
-        ...capitulo,
-        ordem: capitulo.ordem || index + 1
-      },
-      index
-    )
-  );
+  const capitulosExistentes = await listarCapitulosDaObra(obraId);
+  const resultado = {
+    criados: 0,
+    atualizados: 0,
+    total: capitulos.length
+  };
 
-  await Promise.all(promessas);
+  for (let index = 0; index < capitulos.length; index += 1) {
+    const capitulo = capitulos[index];
+    const existente = encontrarCapituloExistente(capitulosExistentes, capitulo);
+    const capituloId = existente?.id || gerarIdCapitulo(capitulo, index);
+
+    const ref = doc(
+      db,
+      OBRAS_COLLECTION,
+      obraId,
+      CAPITULOS_COLLECTION,
+      capituloId
+    );
+
+    await setDoc(
+      ref,
+      limparDadosCapitulo(
+        {
+          ...capitulo,
+          ordem: capitulo.ordem || existente?.ordem || index + 1,
+          tipo: capitulo.tipo || existente?.tipo || "Normal"
+        },
+        index
+      ),
+      { merge: true }
+    );
+
+    if (existente) {
+      resultado.atualizados += 1;
+    } else {
+      resultado.criados += 1;
+    }
+  }
+
+  return resultado;
 }
 
 export async function atualizarCapituloDaObra(obraId, capituloId, dados) {
