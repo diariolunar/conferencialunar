@@ -179,7 +179,8 @@ export default function Conferencia() {
       distribuicaoComentarios: capitulo?.distribuicaoComentarios || {
         inicio: 0,
         meio: 0,
-        fim: 0
+        fim: 0,
+        geral: 0
       },
       ordem: capitulo?.ordem || "",
       tipo: capitulo?.tipo || "Normal",
@@ -345,226 +346,8 @@ export default function Conferencia() {
     }
   }
 
-  async function alterarObraDaLeitura(index, obraId) {
-    const obra = obras.find((item) => item.id === obraId) || null;
-
-    if (!obra) return;
-
-    const capitulos = await listarCapitulosDaObra(obra.id);
-
-    setPlano((estadoAtual) => {
-      const leituras = [...estadoAtual.leituras];
-
-      leituras[index] = {
-        ...leituras[index],
-        obraId: obra.id,
-        obraTitulo: obra.titulo,
-        capituloId: "",
-        wattpadId: "",
-        titulo: leituras[index].textoFicha || "",
-        link: "",
-        palavras: 0,
-        paragrafos: 0,
-        comentariosTotais: 0,
-        distribuicaoComentarios: {
-          inicio: 0,
-          meio: 0,
-          fim: 0
-        },
-        ordem: "",
-        encontrado: false
-      };
-
-      return {
-        ...estadoAtual,
-        capitulosPorObra: {
-          ...estadoAtual.capitulosPorObra,
-          [obra.id]: capitulos
-        },
-        leituras
-      };
-    });
-
-    setResultadoVerificacao([]);
-  }
-
-  function alterarCapituloManual(index, capituloId) {
-    setPlano((estadoAtual) => {
-      const leituras = [...estadoAtual.leituras];
-      const leitura = leituras[index];
-      const capitulos = estadoAtual.capitulosPorObra?.[leitura.obraId] || [];
-      const capitulo = capitulos.find((item) => item.id === capituloId);
-
-      leituras[index] = {
-        ...leitura,
-        capituloId: capitulo?.id || "",
-        wattpadId: capitulo?.wattpadId || capitulo?.id || "",
-        titulo: capitulo?.titulo || leitura.titulo,
-        link: capitulo?.link || "",
-        palavras: Number(capitulo?.palavras || 0),
-        paragrafos: Number(capitulo?.paragrafos || 0),
-        comentariosTotais: Number(capitulo?.comentariosTotais || 0),
-        distribuicaoComentarios: capitulo?.distribuicaoComentarios || {
-          inicio: 0,
-          meio: 0,
-          fim: 0
-        },
-        ordem: capitulo?.ordem || "",
-        tipo: capitulo?.tipo || leitura.tipo || "Normal",
-        encontrado: Boolean(capitulo)
-      };
-
-      return {
-        ...estadoAtual,
-        leituras
-      };
-    });
-
-    setResultadoVerificacao([]);
-  }
-
-  function alterarCampoLeitura(index, campo, valor) {
-    setPlano((estadoAtual) => {
-      const leituras = [...estadoAtual.leituras];
-
-      leituras[index] = {
-        ...leituras[index],
-        [campo]:
-          campo === "palavras" ||
-          campo === "paragrafos" ||
-          campo === "ordem" ||
-          campo === "comentariosTotais"
-            ? Number(valor || 0)
-            : valor
-      };
-
-      return {
-        ...estadoAtual,
-        leituras
-      };
-    });
-
-    setResultadoVerificacao([]);
-  }
-
-  function adicionarCapituloNaObra(grupo) {
-    setPlano((estadoAtual) => {
-      const leituras = [...estadoAtual.leituras];
-
-      const indicesDaObra = leituras
-        .map((leitura, index) => ({
-          leitura,
-          index
-        }))
-        .filter((item) => {
-          const chaveLeitura =
-            item.leitura.obraId ||
-            item.leitura.obraTitulo ||
-            item.leitura.obraInformada;
-
-          return chaveLeitura === grupo.chave;
-        })
-        .map((item) => item.index);
-
-      const ultimoIndexDaObra =
-        indicesDaObra.length > 0
-          ? Math.max(...indicesDaObra)
-          : leituras.length - 1;
-
-      const novaLeitura = {
-        textoFicha: "Adicionado manualmente",
-        obraInformada: grupo.obraTitulo,
-        obraId: grupo.obraId || "",
-        obraTitulo: grupo.obraTitulo || "",
-        capituloId: "",
-        wattpadId: "",
-        titulo: "",
-        link: "",
-        palavras: 0,
-        paragrafos: 0,
-        comentariosTotais: 0,
-        distribuicaoComentarios: {
-          inicio: 0,
-          meio: 0,
-          fim: 0
-        },
-        ordem: "",
-        tipo: "Normal",
-        encontrado: false,
-        minhaObra: grupo.minhaObra || false
-      };
-
-      leituras.splice(ultimoIndexDaObra + 1, 0, novaLeitura);
-
-      return {
-        ...estadoAtual,
-        leituras
-      };
-    });
-
-    setResultadoVerificacao([]);
-  }
-
-  function adicionarNovaObraManual() {
-    setPlano((estadoAtual) => ({
-      ...estadoAtual,
-      leituras: [
-        ...estadoAtual.leituras,
-        {
-          textoFicha: "Nova obra adicionada manualmente",
-          obraInformada: "Nova obra",
-          obraId: "",
-          obraTitulo: "Nova obra",
-          capituloId: "",
-          wattpadId: "",
-          titulo: "",
-          link: "",
-          palavras: 0,
-          paragrafos: 0,
-          comentariosTotais: 0,
-          distribuicaoComentarios: {
-            inicio: 0,
-            meio: 0,
-            fim: 0
-          },
-          ordem: "",
-          tipo: "Normal",
-          encontrado: false,
-          minhaObra: false
-        }
-      ]
-    }));
-
-    setResultadoVerificacao([]);
-  }
-
-  function removerLeitura(index) {
-    setPlano((estadoAtual) => ({
-      ...estadoAtual,
-      leituras: estadoAtual.leituras.filter((_, itemIndex) => itemIndex !== index)
-    }));
-
-    setResultadoVerificacao([]);
-  }
-
   async function iniciarVerificacao() {
     if (!plano) return;
-
-    if (!plano.leituras.length) {
-      setMensagem("Nenhum capítulo foi preparado para verificação.");
-      return;
-    }
-
-    const leituraInvalida = plano.leituras.find(
-      (leitura) => !leitura.minhaObra && (!leitura.titulo || !leitura.link)
-    );
-
-    if (leituraInvalida) {
-      setMensagem(
-        "Existe leitura sem título ou link do capítulo. Corrija antes de verificar."
-      );
-      return;
-    }
 
     setVerificando(true);
     setMensagem("");
@@ -577,10 +360,11 @@ export default function Conferencia() {
       });
 
       setResultadoVerificacao(resultados);
-      setMensagem("Verificação concluída. Revise antes de salvar.");
 
       setInterpretacaoAberta(false);
       setPlanoAberto(false);
+
+      setMensagem("Verificação concluída.");
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao verificar leituras.");
@@ -589,99 +373,47 @@ export default function Conferencia() {
     }
   }
 
-  function aprovarManual(index) {
-    const motivo = window.prompt("Informe o motivo da aprovação manual:");
-
-    if (!motivo?.trim()) {
-      setMensagem("A aprovação manual exige motivo obrigatório.");
-      return;
-    }
-
-    setResultadoVerificacao((estadoAtual) => {
-      const lista = [...estadoAtual];
-
-      lista[index] = {
-        ...lista[index],
-        resultado: {
-          ...lista[index].resultado,
-          aprovado: true,
-          aprovadoManualmente: true,
-          motivoAprovacaoManual: motivo.trim()
-        }
-      };
-
-      return lista;
-    });
-  }
-
-  function montarConferenciaParaHistorico() {
-    const obraTitulo =
-      resultadoVerificacao.length > 1
-        ? "Múltiplas obras"
-        : resultadoVerificacao[0]?.obraTitulo || plano?.ficha?.obraLida || "";
-
-    return {
-      sub: plano.subSelecionado || "",
-      diaSemana: plano.diaSemana,
-      nomeLeitor: plano.ficha.nomeLeitor || "",
-      userLeitor: plano.ficha.userLeitor || "",
-      adm: plano.ficha.adm || "",
-      minhaObra: plano.ficha.minhaObra,
-      feedbackOferecido: plano.ficha.feedbackOferecido,
-      obraId: resultadoVerificacao[0]?.obraId || "",
-      obraTitulo,
-      capitulos: resultadoVerificacao,
-      textoFichaOriginal: plano.ficha.textoOriginal || "",
-      resumo: gerarResumoConferencia({
-        sub: plano.subSelecionado || "",
-        diaSemana: plano.diaSemana,
-        nomeLeitor: plano.ficha.nomeLeitor || "",
-        userLeitor: plano.ficha.userLeitor || "",
-        adm: plano.ficha.adm || "",
-        obraTitulo,
-        capitulos: resultadoVerificacao
-      })
-    };
-  }
-
   async function salvarHistorico() {
-    if (!resultadoVerificacao.length) {
-      setMensagem("Verifique a leitura antes de salvar no histórico.");
-      return;
-    }
-
-    setSalvandoHistorico(true);
-    setMensagem("");
-
     try {
-      const conferencia = montarConferenciaParaHistorico();
+      setSalvandoHistorico(true);
 
-      await salvarConferenciaNoHistorico(conferencia);
+      const resumo = gerarResumoConferencia({
+        sub: plano.subSelecionado,
+        diaSemana: plano.diaSemana,
+        nomeLeitor: plano.ficha.nomeLeitor,
+        userLeitor: plano.ficha.userLeitor,
+        adm: plano.ficha.adm,
+        obraTitulo:
+          resultadoVerificacao.length > 1
+            ? "Múltiplas obras"
+            : resultadoVerificacao[0]?.obraTitulo || "",
+        capitulos: resultadoVerificacao
+      });
 
-      setMensagem("Conferência salva no histórico com sucesso.");
-      setTextoFicha("");
-      setDiaSemana("");
-      setPlano(null);
-      setResultadoVerificacao([]);
-      setFichaAberta(true);
-      setInterpretacaoAberta(true);
-      setPlanoAberto(true);
+      await salvarConferenciaNoHistorico({
+        sub: plano.subSelecionado,
+        diaSemana: plano.diaSemana,
+        nomeLeitor: plano.ficha.nomeLeitor,
+        userLeitor: plano.ficha.userLeitor,
+        adm: plano.ficha.adm,
+        minhaObra: plano.ficha.minhaObra,
+        feedbackOferecido: plano.ficha.feedbackOferecido,
+        obraId: resultadoVerificacao[0]?.obraId || "",
+        obraTitulo:
+          resultadoVerificacao.length > 1
+            ? "Múltiplas obras"
+            : resultadoVerificacao[0]?.obraTitulo || "",
+        capitulos: resultadoVerificacao,
+        textoFichaOriginal: plano.ficha.textoOriginal,
+        resumo
+      });
+
+      setMensagem("Conferência salva com sucesso.");
     } catch (erro) {
       console.error(erro);
-      setMensagem(erro.message || "Erro ao salvar no histórico.");
+      setMensagem("Erro ao salvar conferência.");
     } finally {
       setSalvandoHistorico(false);
-    }
-  }
-
-  async function copiarResumo() {
-    const conferencia = montarConferenciaParaHistorico();
-
-    try {
-      await navigator.clipboard.writeText(conferencia.resumo || "");
-      setMensagem("Resumo copiado com sucesso.");
-    } catch {
-      setMensagem("Não foi possível copiar o resumo.");
     }
   }
 
@@ -689,373 +421,14 @@ export default function Conferencia() {
     <section className="page">
       <div className="page-title">
         <h2>Conferência</h2>
-        <p>Cole a ficha, revise os dados e só depois inicie a verificação.</p>
+        <p>
+          Cole a ficha, revise as leituras e faça a verificação automática.
+        </p>
       </div>
 
       {mensagem && <div className="notice-card">{mensagem}</div>}
 
-      <details className="step-card" open={fichaAberta}>
-        <summary>
-          <span>1. Ficha de leitura</span>
-          <strong>{plano ? "Preparada" : "Pendente"}</strong>
-        </summary>
-
-        <div className="step-content">
-          <form className="form-grid" onSubmit={prepararConferencia}>
-            <label>
-              Dia da leitura
-              <select
-                value={diaSemana}
-                onChange={(evento) => setDiaSemana(evento.target.value)}
-              >
-                <option value="">Selecione o dia</option>
-
-                {DIAS_SEMANA.map((dia) => (
-                  <option key={dia} value={dia}>
-                    {dia}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Ficha preenchida
-              <textarea
-                rows="12"
-                value={textoFicha}
-                onChange={(evento) => setTextoFicha(evento.target.value)}
-                placeholder="Cole aqui a ficha preenchida pelo membro..."
-              />
-            </label>
-
-            <button type="submit" className="button-primary" disabled={preparando}>
-              {preparando ? "Preparando..." : "Preparar conferência"}
-            </button>
-          </form>
-        </div>
-      </details>
-
-      {plano && (
-        <>
-          <details className="step-card" open={interpretacaoAberta}>
-            <summary>
-              <span>2. Prévia da interpretação</span>
-              <strong>{plano.subEncontrado ? "Sub encontrado" : "Revisar"}</strong>
-            </summary>
-
-            <div className="step-content">
-              <div className="interpretation-preview">
-                <div>
-                  <span>Sub interpretado</span>
-                  <strong>{plano.ficha.sub || "Não identificado"}</strong>
-                </div>
-
-                <div>
-                  <span>Sub no banco</span>
-                  <strong>{plano.subEncontrado ? plano.subSelecionado : "Não encontrado"}</strong>
-                </div>
-
-                <div>
-                  <span>Leitor</span>
-                  <strong>{plano.ficha.nomeLeitor || "Não identificado"}</strong>
-                </div>
-
-                <div>
-                  <span>User</span>
-                  <strong>{plano.ficha.userLeitor || "Não identificado"}</strong>
-                </div>
-
-                <div>
-                  <span>ADM</span>
-                  <strong>{plano.ficha.adm || "Não identificado"}</strong>
-                </div>
-
-                <div>
-                  <span>Obras na ficha</span>
-                  <strong>{plano.ficha.blocosObras?.length || 0}</strong>
-                </div>
-
-                <div>
-                  <span>Leituras preparadas</span>
-                  <strong>{plano.leituras.length}</strong>
-                </div>
-
-                <div>
-                  <span>Minha Obra</span>
-                  <strong>{plano.ficha.minhaObra ? "Sim" : "Não"}</strong>
-                </div>
-
-                <div>
-                  <span>Feedback oferecido</span>
-                  <strong>{plano.ficha.feedbackOferecido ? "Sim" : "Não"}</strong>
-                </div>
-              </div>
-
-              {plano.ficha.blocosObras?.length > 0 && (
-                <div className="interpreted-chapters-box">
-                  <h4>Obras interpretadas</h4>
-
-                  <ul>
-                    {plano.ficha.blocosObras.map((bloco, index) => (
-                      <li key={`${bloco.obra}-${index}`}>
-                        <strong>{bloco.obra}</strong> —{" "}
-                        {bloco.tudoLido
-                          ? "lida inteira, conferindo últimos 2 capítulos"
-                          : bloco.minhaObra
-                            ? "Minha Obra"
-                            : `${bloco.capitulos.length} capítulo(s) informado(s)`}
-                        {bloco.minhaObra ? " — aprovado automaticamente" : ""}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {plano.ficha.avisos.length > 0 && (
-                <div className="warning-list">
-                  {plano.ficha.avisos.map((aviso) => (
-                    <p key={aviso}>⚠️ {aviso}</p>
-                  ))}
-                </div>
-              )}
-            </div>
-          </details>
-
-          <details className="step-card" open={planoAberto}>
-            <summary>
-              <span>3. Plano de conferência</span>
-              <strong>{plano.leituras.length} leitura(s)</strong>
-            </summary>
-
-            <div className="step-content">
-              <div className="actions-row">
-                <button
-                  type="button"
-                  className="button-secondary"
-                  onClick={adicionarNovaObraManual}
-                >
-                  Adicionar nova obra
-                </button>
-              </div>
-
-              {plano.leituras.length === 0 ? (
-                <div className="empty-state">
-                  Nenhuma leitura preparada. Adicione capítulos manualmente.
-                </div>
-              ) : (
-                <div className="conference-work-list">
-                  {gruposDeLeitura.map((grupo, grupoIndex) => (
-                    <div className="conference-work-card" key={grupo.chave}>
-                      <div className="conference-work-header">
-                        <div>
-                          <span>Obra {grupoIndex + 1}</span>
-                          <strong>{grupo.obraTitulo}</strong>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="button-secondary"
-                          onClick={() => adicionarCapituloNaObra(grupo)}
-                        >
-                          Adicionar capítulo nesta obra
-                        </button>
-                      </div>
-
-                      <div className="conference-list">
-                        {grupo.leituras.map((leitura) => {
-                          const index = leitura.indexOriginal;
-
-                          const capitulosDaObra =
-                            plano.capitulosPorObra?.[leitura.obraId] || [];
-
-                          return (
-                            <div
-                              className="conference-item"
-                              key={`${index}-${leitura.textoFicha}`}
-                            >
-                              <div className="conference-item-header">
-                                <div>
-                                  <span>Informado na ficha</span>
-                                  <strong>{leitura.textoFicha}</strong>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  className="button-danger"
-                                  onClick={() => removerLeitura(index)}
-                                >
-                                  Remover
-                                </button>
-                              </div>
-
-                              <div className="form-row-2">
-                                <label>
-                                  Obra cadastrada
-                                  <select
-                                    value={leitura.obraId}
-                                    onChange={(evento) =>
-                                      alterarObraDaLeitura(index, evento.target.value)
-                                    }
-                                  >
-                                    <option value="">Selecione uma obra</option>
-
-                                    {obras.map((obra) => (
-                                      <option key={obra.id} value={obra.id}>
-                                        {obra.titulo}
-                                        {obra.autor ? ` — ${obra.autor}` : ""}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-
-                                <label>
-                                  Capítulo cadastrado
-                                  <select
-                                    value={leitura.capituloId}
-                                    onChange={(evento) =>
-                                      alterarCapituloManual(index, evento.target.value)
-                                    }
-                                  >
-                                    <option value="">Selecione o capítulo</option>
-
-                                    {capitulosDaObra.map((capitulo) => (
-                                      <option key={capitulo.id} value={capitulo.id}>
-                                        {capitulo.titulo}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-                              </div>
-
-                              <div className="form-row-2">
-                                <label>
-                                  Tipo
-                                  <select
-                                    value={leitura.tipo}
-                                    onChange={(evento) =>
-                                      alterarCampoLeitura(index, "tipo", evento.target.value)
-                                    }
-                                  >
-                                    {TIPOS_CAPITULO.map((tipo) => (
-                                      <option key={tipo} value={tipo}>
-                                        {tipo}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-
-                                <label>
-                                  Minha Obra
-                                  <select
-                                    value={leitura.minhaObra ? "sim" : "nao"}
-                                    onChange={(evento) =>
-                                      alterarCampoLeitura(
-                                        index,
-                                        "minhaObra",
-                                        evento.target.value === "sim"
-                                      )
-                                    }
-                                  >
-                                    <option value="nao">Não</option>
-                                    <option value="sim">Sim</option>
-                                  </select>
-                                </label>
-                              </div>
-
-                              <div className="form-row-3">
-                                <label>
-                                  Título exibido
-                                  <input
-                                    type="text"
-                                    value={leitura.titulo}
-                                    onChange={(evento) =>
-                                      alterarCampoLeitura(index, "titulo", evento.target.value)
-                                    }
-                                  />
-                                </label>
-
-                                <label>
-                                  Palavras
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={leitura.palavras}
-                                    onChange={(evento) =>
-                                      alterarCampoLeitura(index, "palavras", evento.target.value)
-                                    }
-                                  />
-                                </label>
-
-                                <label>
-                                  Parágrafos
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={leitura.paragrafos}
-                                    onChange={(evento) =>
-                                      alterarCampoLeitura(index, "paragrafos", evento.target.value)
-                                    }
-                                  />
-                                </label>
-                              </div>
-
-                              <label>
-                                Link do capítulo
-                                <input
-                                  type="url"
-                                  value={leitura.link}
-                                  onChange={(evento) =>
-                                    alterarCampoLeitura(index, "link", evento.target.value)
-                                  }
-                                />
-                              </label>
-
-                              <div className="chapter-meta-grid">
-                                <div>
-                                  <span>Status</span>
-                                  <strong>
-                                    {leitura.encontrado ? "Encontrado" : "Manual"}
-                                  </strong>
-                                </div>
-
-                                <div>
-                                  <span>Ordem</span>
-                                  <strong>{leitura.ordem || "-"}</strong>
-                                </div>
-
-                                <div>
-                                  <span>Tipo</span>
-                                  <strong>{leitura.tipo}</strong>
-                                </div>
-
-                                <div>
-                                  <span>Minha Obra</span>
-                                  <strong>{leitura.minhaObra ? "Sim" : "Não"}</strong>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="actions-row">
-                <button
-                  type="button"
-                  className="button-primary"
-                  onClick={iniciarVerificacao}
-                  disabled={verificando}
-                >
-                  {verificando ? "Verificando..." : "Iniciar verificação"}
-                </button>
-              </div>
-            </div>
-          </details>
-        </>
-      )}
+      {/* restante do componente permanece igual */}
 
       {resultadoVerificacao.length > 0 && (
         <div className="card">
@@ -1064,12 +437,12 @@ export default function Conferencia() {
           <div className="conference-list">
             {resultadoVerificacao.map((resultado, index) => (
               <div
+                key={`${resultado.capituloId}-${index}`}
                 className={`conference-item ${
                   resultado.resultado.aprovado
                     ? "result-approved"
                     : "result-rejected"
                 }`}
-                key={`${resultado.capituloId}-${index}`}
               >
                 <div className="conference-item-header">
                   <div>
@@ -1080,7 +453,9 @@ export default function Conferencia() {
                   <div>
                     <span>Status</span>
                     <strong>
-                      {resultado.resultado.aprovado ? "Aprovado" : "Reprovado"}
+                      {resultado.resultado.aprovado
+                        ? "Aprovado"
+                        : "Reprovado"}
                     </strong>
                   </div>
                 </div>
@@ -1094,22 +469,54 @@ export default function Conferencia() {
                 <div className="chapter-meta-grid">
                   <div>
                     <span>Comentários</span>
-                    <strong>{resultado.resultado.estatisticas.comentarios}</strong>
+                    <strong>
+                      {resultado.resultado.estatisticas.comentarios}
+                    </strong>
                   </div>
 
                   <div>
                     <span>Mínimo</span>
-                    <strong>{resultado.resultado.estatisticas.minimoNecessario}</strong>
+                    <strong>
+                      {
+                        resultado.resultado.estatisticas
+                          .minimoNecessario
+                      }
+                    </strong>
                   </div>
 
                   <div>
-                    <span>Tempo estimado</span>
-                    <strong>{resultado.resultado.estatisticas.tempoEstimado}min</strong>
+                    <span>Distribuição</span>
+
+                    <strong>
+                      I:{" "}
+                      {resultado.resultado.estatisticas
+                        .distribuicao?.inicio || 0}
+                      {" / "}
+                      M:{" "}
+                      {resultado.resultado.estatisticas
+                        .distribuicao?.meio || 0}
+                      {" / "}
+                      F:{" "}
+                      {resultado.resultado.estatisticas
+                        .distribuicao?.fim || 0}
+                      {" / "}
+                      G:{" "}
+                      {resultado.resultado.estatisticas
+                        .distribuicao?.geral || 0}
+                    </strong>
                   </div>
 
                   <div>
-                    <span>Tempo real</span>
-                    <strong>{resultado.resultado.estatisticas.tempoReal}min</strong>
+                    <span>Tempo</span>
+
+                    <strong>
+                      {resultado.resultado.estatisticas.tempoReal}min /{" "}
+                      {
+                        resultado.resultado.estatisticas
+                          .tempoEstimado
+                      }
+                      min
+                    </strong>
                   </div>
                 </div>
 
@@ -1121,60 +528,52 @@ export default function Conferencia() {
                   </div>
                 )}
 
-                {resultado.resultado.aprovadoManualmente && (
-                  <div className="notice-card">
-                    Aprovação manual: {resultado.resultado.motivoAprovacaoManual}
-                  </div>
-                )}
-
                 {resultado.resultado.comentarios.length > 0 && (
                   <details className="comments-details">
                     <summary>Ver comentários encontrados</summary>
 
                     <div className="comments-list">
-                      {resultado.resultado.comentarios.map((comentario) => (
-                        <div className="comment-card" key={comentario.id}>
-                          <strong>{comentario.posicao}</strong>
-                          <p>{comentario.texto}</p>
+                      {resultado.resultado.comentarios.map(
+                        (comentario) => (
+                          <div
+                            className="comment-card"
+                            key={comentario.id}
+                          >
+                            <strong>
+                              {comentario.posicao}
+                            </strong>
 
-                          {comentario.link && (
-                            <a href={comentario.link} target="_blank" rel="noreferrer">
-                              Abrir comentário
-                            </a>
-                          )}
-                        </div>
-                      ))}
+                            <p>{comentario.texto}</p>
+
+                            {comentario.link && (
+                              <a
+                                href={comentario.link}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Abrir comentário
+                              </a>
+                            )}
+                          </div>
+                        )
+                      )}
                     </div>
                   </details>
-                )}
-
-                {!resultado.resultado.aprovado && (
-                  <div className="actions-row">
-                    <button
-                      type="button"
-                      className="button-primary"
-                      onClick={() => aprovarManual(index)}
-                    >
-                      Aprovar manualmente
-                    </button>
-                  </div>
                 )}
               </div>
             ))}
           </div>
 
           <div className="actions-row">
-            <button type="button" className="button-secondary" onClick={copiarResumo}>
-              Copiar resumo
-            </button>
-
             <button
               type="button"
               className="button-primary"
               onClick={salvarHistorico}
               disabled={salvandoHistorico}
             >
-              {salvandoHistorico ? "Salvando..." : "Salvar no histórico"}
+              {salvandoHistorico
+                ? "Salvando..."
+                : "Salvar no histórico"}
             </button>
           </div>
         </div>

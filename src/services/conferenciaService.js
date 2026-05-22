@@ -62,6 +62,15 @@ function calcularTempoReal(comentarios = []) {
   );
 }
 
+function garantirDistribuicao(distribuicao = {}) {
+  return {
+    inicio: Number(distribuicao.inicio || 0),
+    meio: Number(distribuicao.meio || 0),
+    fim: Number(distribuicao.fim || 0),
+    geral: Number(distribuicao.geral || 0)
+  };
+}
+
 function gerarResultado({
   capitulo,
   comentariosUsuario,
@@ -70,6 +79,8 @@ function gerarResultado({
   tempoEstimado,
   tempoReal
 }) {
+  const distribuicaoSegura = garantirDistribuicao(distribuicao);
+
   if (capitulo.minhaObra) {
     return {
       aprovado: true,
@@ -92,7 +103,8 @@ function gerarResultado({
         distribuicao: {
           inicio: 0,
           meio: 0,
-          fim: 0
+          fim: 0,
+          geral: 0
         }
       },
       observacao: "Minha Obra: conferência aprovada automaticamente."
@@ -113,15 +125,15 @@ function gerarResultado({
     );
   }
 
-  if (ehNormal && distribuicao.inicio <= 0) {
+  if (ehNormal && distribuicaoSegura.inicio <= 0) {
     motivos.push("Nenhum comentário do usuário encontrado no início.");
   }
 
-  if (ehNormal && distribuicao.meio <= 0) {
+  if (ehNormal && distribuicaoSegura.meio <= 0) {
     motivos.push("Nenhum comentário do usuário encontrado no meio.");
   }
 
-  if (ehNormal && distribuicao.fim <= 0) {
+  if (ehNormal && distribuicaoSegura.fim <= 0) {
     motivos.push("Nenhum comentário do usuário encontrado no fim.");
   }
 
@@ -134,6 +146,13 @@ function gerarResultado({
     motivos.push("Tempo real muito abaixo do esperado para a leitura.");
   }
 
+  const comentariosGerais = distribuicaoSegura.geral;
+
+  const observacao =
+    comentariosGerais > 0
+      ? `${comentariosGerais} comentário(s) geral(is) encontrado(s). Eles contam para a quantidade mínima, mas não substituem comentários no início, meio e fim.`
+      : "";
+
   return {
     aprovado: motivos.length === 0,
     aprovadoManualmente: false,
@@ -144,7 +163,8 @@ function gerarResultado({
       texto: comentario.texto,
       link: comentario.link,
       criadoEm: comentario.criadoEm,
-      user: comentario.user
+      user: comentario.user,
+      tipo: comentario.tipo || comentario.posicao
     })),
     motivos,
     regraAplicada: {
@@ -152,15 +172,18 @@ function gerarResultado({
       minimoComentarios: minimoNecessario,
       exigeDistribuicao: ehNormal,
       exigeTempo: ehNormal,
-      minhaObra: false
+      minhaObra: false,
+      comentarioGeralContaQuantidade: true,
+      comentarioGeralContaDistribuicao: false
     },
     estatisticas: {
       comentarios: comentariosUsuario.length,
       minimoNecessario,
       tempoEstimado,
       tempoReal,
-      distribuicao
-    }
+      distribuicao: distribuicaoSegura
+    },
+    observacao
   };
 }
 
@@ -180,7 +203,8 @@ async function verificarCapituloReal({
         distribuicao: {
           inicio: 0,
           meio: 0,
-          fim: 0
+          fim: 0,
+          geral: 0
         },
         minimoNecessario: 0,
         tempoEstimado: tempoEstimadoAtual,
@@ -197,12 +221,14 @@ async function verificarCapituloReal({
 
   const comentariosUsuario = detalhes.comentariosUsuario || [];
 
-  const distribuicao =
+  const distribuicao = garantirDistribuicao(
     detalhes.distribuicaoComentarios || {
       inicio: 0,
       meio: 0,
-      fim: 0
-    };
+      fim: 0,
+      geral: 0
+    }
+  );
 
   const tempoEstimado = calcularTempoEstimado(detalhes.palavras);
   const tempoReal = calcularTempoReal(comentariosUsuario);

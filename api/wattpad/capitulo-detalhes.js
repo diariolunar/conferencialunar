@@ -1,5 +1,6 @@
 function extrairIdCapitulo(linkOuId = "") {
   const texto = String(linkOuId || "").trim();
+
   const matchWattpad = texto.match(/wattpad\.com\/(\d+)/i);
   if (matchWattpad?.[1]) return matchWattpad[1];
 
@@ -107,31 +108,59 @@ async function fetchParagrafosApi(capituloId) {
   return Array.isArray(dados.paragraphs) ? dados.paragraphs : [];
 }
 
-async function fetchComentariosParagrafo(capituloId, paragrafoId) {
-  if (!capituloId || !paragrafoId) return [];
+function montarUrlComentariosGerais(capituloId, afterResourceId = "") {
+  const url = new URL(
+    `https://www.wattpad.com/v5/comments/namespaces/parts/resources/${capituloId}/comments`
+  );
 
-  const resourceId = `${capituloId}_${paragrafoId}`;
-  const url = `https://www.wattpad.com/v5/comments/namespaces/paragraphs/resources/${resourceId}/comments`;
+  url.searchParams.set("limit", "100");
 
-  const resposta = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-      Accept: "application/json,text/plain,*/*",
-      "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
+  if (afterResourceId) {
+    url.searchParams.set("after", afterResourceId);
+  }
+
+  return url.toString();
+}
+
+async function fetchComentariosGeraisCapitulo(capituloId) {
+  const todosComentarios = [];
+  let afterResourceId = "";
+  let pagina = 0;
+
+  while (pagina < 20) {
+    const url = montarUrlComentariosGerais(capituloId, afterResourceId);
+
+    const resposta = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        Accept: "application/json,text/plain,*/*",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
+      }
+    });
+
+    if (!resposta.ok) break;
+
+    const dados = await resposta.json();
+    const comentarios = Array.isArray(dados.comments) ? dados.comments : [];
+
+    todosComentarios.push(...comentarios);
+
+    const proximo = dados.pagination?.after?.resourceId;
+
+    if (!proximo || comentarios.length === 0) {
+      break;
     }
-  });
 
-  if (!resposta.ok) return [];
+    afterResourceId = proximo;
+    pagina += 1;
+  }
 
-  const dados = await resposta.json();
-
-  return Array.isArray(dados.comments) ? dados.comments : [];
+  return todosComentarios;
 }
 
 function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
   const totalReal = paragrafosHtml.length;
-
   const mapaApi = new Map();
 
   paragrafosApi.forEach((paragrafoApi) => {
@@ -154,54 +183,103 @@ function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
   });
 }
 
-async function buscarComentariosDoUsuario({
+function criarMapaParagrafos(paragrafos = []) {
+  const mapa = new Map();
+
+  paragrafos.forEach((paragrafo) => {
+    if (paragrafo.id) {
+      mapa.set(paragrafo.id, paragrafo);
+    }
+  });
+
+  return mapa;
+}
+
+function extrairParagrafoIdDoComentario(comentario = {}, capituloId = "") {
+  if (comentario.resource?.namespace !== "paragraphs") {
+    return "";
+  }
+
+  const resourceId = comentario.resource?.resourceId || "";
+
+  if (!resourceId) {
+    return "";
+  }
+
+  return resourceId.replace(`${capituloId}_`, "");
+}
+
+function normalizarComentario({
+  comentario,
+  capituloId,
+  mapaParagrafos
+}) {
+  const paragrafoId = extrairParagrafoIdDoComentario(comentario, capituloId);
+  const paragrafo = paragrafoId ? mapaParagrafos.get(paragrafoId) : null;
+
+  const ehComentarioGeral = comentario.resource?.namespace === "parts";
+
+  return {
+    id:
+      comentario.commentId?.resourceId ||
+      `${comentario.resource?.resourceId || capituloId}-${comentario.created || ""}`,
+    texto: comentario.text || "",
+    user: comentario.user?.name || "",
+    avatar: comentario.user?.avatar || "",
+    criadoEm: comentario.created || "",
+    modificadoEm: comentario.modified || "",
+    link: comentario.deeplink || "",
+    paragrafoId,
+    paragrafoIndice: paragrafo?.indice ?? null,
+    posicao: ehComentarioGeral ? "geral" : paragrafo?.posicao || "geral",
+    tipo: ehComentarioGeral ? "geral" : "paragrafo"
+  };
+}
+
+function filtrarComentariosDoUsuario({
+  comentarios = [],
   capituloId,
   paragrafos = [],
   userLeitor = ""
 }) {
   const userNormalizado = normalizarUser(userLeitor);
+  const mapaParagrafos = criarMapaParagrafos(paragrafos);
 
   if (!userNormalizado) return [];
 
-  const paragrafosComComentarios = paragrafos.filter(
-    (paragrafo) => Number(paragrafo.commentCount || 0) > 0 && paragrafo.id
-  );
-
-  const comentariosFiltrados = [];
-
-  for (const paragrafo of paragrafosComComentarios) {
-    const comentarios = await fetchComentariosParagrafo(capituloId, paragrafo.id);
-
-    comentarios.forEach((comentario) => {
+  return comentarios
+    .filter((comentario) => {
       const nomeComentario = normalizarUser(comentario.user?.name || "");
+      return nomeComentario === userNormalizado;
+    })
+    .map((comentario) =>
+      normalizarComentario({
+        comentario,
+        capituloId,
+        mapaParagrafos
+      })
+    );
+}
 
-      if (nomeComentario !== userNormalizado) return;
+function removerComentariosDuplicados(comentarios = []) {
+  const vistos = new Set();
 
-      comentariosFiltrados.push({
-        id:
-          comentario.commentId?.resourceId ||
-          `${paragrafo.id}-${comentariosFiltrados.length}`,
-        texto: comentario.text || "",
-        user: comentario.user?.name || "",
-        avatar: comentario.user?.avatar || "",
-        criadoEm: comentario.created || "",
-        modificadoEm: comentario.modified || "",
-        link: comentario.deeplink || "",
-        paragrafoId: paragrafo.id,
-        paragrafoIndice: paragrafo.indice,
-        posicao: paragrafo.posicao
-      });
-    });
-  }
+  return comentarios.filter((comentario) => {
+    const chave = comentario.id;
 
-  return comentariosFiltrados;
+    if (!chave || vistos.has(chave)) return false;
+
+    vistos.add(chave);
+    return true;
+  });
 }
 
 function contarDistribuicaoComentarios(comentarios = []) {
   return {
     inicio: comentarios.filter((comentario) => comentario.posicao === "inicio").length,
     meio: comentarios.filter((comentario) => comentario.posicao === "meio").length,
-    fim: comentarios.filter((comentario) => comentario.posicao === "fim").length
+    fim: comentarios.filter((comentario) => comentario.posicao === "fim").length,
+    geral: comentarios.filter((comentario) => comentario.posicao === "geral").length
   };
 }
 
@@ -224,29 +302,30 @@ export default async function handler(req, res) {
       });
     }
 
-    const [html, paragrafosApi] = await Promise.all([
+    const [html, paragrafosApi, comentariosGerais] = await Promise.all([
       fetchTextoCapitulo(id),
-      fetchParagrafosApi(id)
+      fetchParagrafosApi(id),
+      fetchComentariosGeraisCapitulo(id)
     ]);
 
     const paragrafosHtml = extrairParagrafosDoHtml(html);
     const paragrafos = combinarParagrafos(paragrafosHtml, paragrafosApi);
 
-    const comentariosUsuario = await buscarComentariosDoUsuario({
-      capituloId: id,
-      paragrafos,
-      userLeitor
-    });
+    const comentariosUsuario = removerComentariosDuplicados(
+      filtrarComentariosDoUsuario({
+        comentarios: comentariosGerais,
+        capituloId: id,
+        paragrafos,
+        userLeitor
+      })
+    );
 
     const palavras = paragrafos.reduce(
       (total, paragrafo) => total + Number(paragrafo.palavras || 0),
       0
     );
 
-    const comentariosTotaisCapitulo = paragrafos.reduce(
-      (total, paragrafo) => total + Number(paragrafo.commentCount || 0),
-      0
-    );
+    const comentariosTotaisCapitulo = comentariosGerais.length;
 
     const distribuicaoComentariosUsuario =
       contarDistribuicaoComentarios(comentariosUsuario);
