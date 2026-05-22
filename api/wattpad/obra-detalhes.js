@@ -1,183 +1,738 @@
-const CACHE_TTL_MS = 1000 * 60 * 10;
-const RATE_LIMIT_MS = 450;
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 
-const cache = globalThis.__wattpadObraCache || new Map();
-const rateState = globalThis.__wattpadObraRateState || {
-  ultimoRequest: 0
-};
+import {
+  atualizarObra,
+  buscarObraPorId
+} from "../services/obrasService.js";
 
-globalThis.__wattpadObraCache = cache;
-globalThis.__wattpadObraRateState = rateState;
+import {
+  atualizarCapituloDaObra,
+  atualizarDetalhesCapitulo,
+  excluirCapitulo,
+  listarCapitulosDaObra,
+  salvarCapituloDaObra,
+  salvarCapitulosDaObra
+} from "../services/capitulosService.js";
 
-function esperar(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+import { buscarDetalhesCapituloWattpad } from "../services/capitulosDetalhesService.js";
+
+const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
+
+function limparTituloCapitulo(texto = "") {
+  return String(texto || "")
+    .replace(/\s*[-–—]?\s*100%\s+conclu[ií]do.*$/i, "")
+    .replace(/\s*[-–—]?\s*conclu[ií]do.*$/i, "")
+    .replace(/\s*aproximadamente\s+\d+\s+horas?.*$/i, "")
+    .replace(/\s*h[aá]\s+\d+\s+horas?.*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-async function respeitarRateLimit() {
-  const agora = Date.now();
-  const diferenca = agora - rateState.ultimoRequest;
+function separarCapitulosEmLote(texto = "", ordemInicial = 1) {
+  return String(texto || "")
+    .split(/\r?\n/)
+    .map((linha) => linha.trim())
+    .filter(Boolean)
+    .map((linha, index) => {
+      const partes = linha.split("|").map((parte) => parte.trim());
 
-  if (diferenca < RATE_LIMIT_MS) {
-    await esperar(RATE_LIMIT_MS - diferenca);
-  }
-
-  rateState.ultimoRequest = Date.now();
-}
-
-function pegarCache(chave) {
-  const item = cache.get(chave);
-
-  if (!item) return null;
-
-  if (Date.now() - item.criadoEm > CACHE_TTL_MS) {
-    cache.delete(chave);
-    return null;
-  }
-
-  return item.valor;
-}
-
-function salvarCache(chave, valor) {
-  cache.set(chave, {
-    criadoEm: Date.now(),
-    valor
-  });
-}
-
-function extrairIdObra(linkOuId = "") {
-  const texto = String(linkOuId || "").trim();
-
-  const matchStory = texto.match(/story\/(\d+)/i);
-  if (matchStory?.[1]) return matchStory[1];
-
-  const matchNumero = texto.match(/^(\d{5,})$/);
-  if (matchNumero?.[1]) return matchNumero[1];
-
-  return "";
-}
-
-async function fetchComTimeout(url, opcoes = {}, timeout = 12000) {
-  await respeitarRateLimit();
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const resposta = await fetch(url, {
-      ...opcoes,
-      signal: controller.signal
+      return {
+        titulo: limparTituloCapitulo(
+          partes[0] || `Capítulo ${ordemInicial + index}`
+        ),
+        link: partes[1] || "",
+        tipo: TIPOS_CAPITULO.includes(partes[2]) ? partes[2] : "Normal",
+        palavras: 0,
+        paragrafos: 0,
+        comentariosTotais: 0,
+        distribuicaoComentarios: {
+          inicio: 0,
+          meio: 0,
+          fim: 0,
+          geral: 0
+        },
+        ordem: ordemInicial + index
+      };
     });
-
-    return resposta;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
-async function fetchJson(url) {
-  const cacheKey = `json:${url}`;
-  const cacheado = pegarCache(cacheKey);
+export default function ObraDetalhes() {
+  const { obraId } = useParams();
 
-  if (cacheado) return cacheado;
+  const [obra, setObra] = useState(null);
+  const [capitulos, setCapitulos] = useState([]);
 
-  const resposta = await fetchComTimeout(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-      Accept: "application/json,text/plain,*/*",
-      "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
+  const [tituloObra, setTituloObra] = useState("");
+  const [autor, setAutor] = useState("");
+  const [userAutor, setUserAutor] = useState("");
+  const [capa, setCapa] = useState("");
+  const [linkObra, setLinkObra] = useState("");
+
+  const [titulo, setTitulo] = useState("");
+  const [link, setLink] = useState("");
+  const [palavras, setPalavras] = useState("");
+  const [paragrafos, setParagrafos] = useState("");
+  const [tipo, setTipo] = useState("Normal");
+
+  const [capitulosEmLote, setCapitulosEmLote] = useState("");
+
+  const [carregando, setCarregando] = useState(true);
+  const [salvandoObra, setSalvandoObra] = useState(false);
+  const [salvandoCapitulo, setSalvandoCapitulo] = useState(false);
+  const [salvandoLote, setSalvandoLote] = useState(false);
+  const [atualizandoCapituloId, setAtualizandoCapituloId] = useState("");
+  const [atualizandoTodos, setAtualizandoTodos] = useState(false);
+  const [alterandoTipoId, setAlterandoTipoId] = useState("");
+
+  const [mensagem, setMensagem] = useState("");
+
+  async function carregarDados() {
+    setCarregando(true);
+    setMensagem("");
+
+    try {
+      const obraEncontrada = await buscarObraPorId(obraId);
+
+      if (!obraEncontrada) {
+        setObra(null);
+        setCapitulos([]);
+        setMensagem("Obra não encontrada.");
+        return;
+      }
+
+      const capitulosEncontrados = await listarCapitulosDaObra(obraId);
+
+      setObra(obraEncontrada);
+      setCapitulos(capitulosEncontrados);
+
+      setTituloObra(obraEncontrada.titulo || "");
+      setAutor(obraEncontrada.autor || "");
+      setUserAutor(obraEncontrada.userAutor || "");
+      setCapa(obraEncontrada.capa || "");
+      setLinkObra(obraEncontrada.link || "");
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao carregar detalhes da obra.");
+    } finally {
+      setCarregando(false);
     }
-  });
-
-  if (!resposta.ok) {
-    throw new Error(`Wattpad respondeu com status ${resposta.status}.`);
   }
 
-  const dados = await resposta.json();
-  salvarCache(cacheKey, dados);
+  async function handleSalvarObra(evento) {
+    evento.preventDefault();
 
-  return dados;
-}
+    if (!tituloObra.trim()) {
+      setMensagem("Informe o título da obra.");
+      return;
+    }
 
-function montarCapitulos(partes = []) {
-  return partes.map((parte, index) => ({
-    wattpadId: String(parte.id || ""),
-    titulo: parte.title || `Capítulo ${index + 1}`,
-    link: parte.url
-      ? `https://www.wattpad.com${parte.url}`
-      : parte.id
-        ? `https://www.wattpad.com/${parte.id}`
-        : "",
-    palavras: Number(parte.wordCount || 0),
-    paragrafos: 0,
-    comentariosTotais: Number(parte.commentCount || 0),
-    distribuicaoComentarios: {
-      inicio: 0,
-      meio: 0,
-      fim: 0,
-      geral: 0
-    },
-    ordem: index + 1,
-    tipo: "Normal"
-  }));
-}
+    setSalvandoObra(true);
+    setMensagem("");
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({
-      erro: true,
-      mensagem: "Método não permitido. Use POST."
-    });
-  }
-
-  try {
-    const { linkObra, obraId } = req.body || {};
-    const id = extrairIdObra(obraId || linkObra);
-
-    if (!id) {
-      return res.status(400).json({
-        erro: true,
-        mensagem: "Informe um link ou ID válido de obra do Wattpad."
+    try {
+      await atualizarObra(obraId, {
+        titulo: tituloObra.trim(),
+        autor: autor.trim(),
+        userAutor: userAutor.replace(/^@/, "").trim(),
+        capa: capa.trim(),
+        link: linkObra.trim()
       });
+
+      setMensagem("Dados da obra atualizados com sucesso.");
+      await carregarDados();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao atualizar obra.");
+    } finally {
+      setSalvandoObra(false);
+    }
+  }
+
+  async function handleSalvarCapitulo(evento) {
+    evento.preventDefault();
+
+    if (!titulo.trim()) {
+      setMensagem("Informe o título real do capítulo.");
+      return;
     }
 
-    const dados = await fetchJson(
-      `https://www.wattpad.com/api/v3/stories/${id}?drafts=0&include_deleted=0`
+    setSalvandoCapitulo(true);
+    setMensagem("");
+
+    try {
+      await salvarCapituloDaObra(obraId, {
+        titulo: limparTituloCapitulo(titulo),
+        link: link.trim(),
+        palavras: Number(palavras || 0),
+        paragrafos: Number(paragrafos || 0),
+        ordem: capitulos.length + 1,
+        tipo
+      });
+
+      setTitulo("");
+      setLink("");
+      setPalavras("");
+      setParagrafos("");
+      setTipo("Normal");
+
+      setMensagem("Capítulo salvo com sucesso.");
+      await carregarDados();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao salvar capítulo.");
+    } finally {
+      setSalvandoCapitulo(false);
+    }
+  }
+
+  async function handleSalvarCapitulosEmLote(evento) {
+    evento.preventDefault();
+
+    if (!capitulosEmLote.trim()) {
+      setMensagem("Cole ao menos um capítulo para cadastrar em lote.");
+      return;
+    }
+
+    setSalvandoLote(true);
+    setMensagem("");
+
+    try {
+      const ordemInicial = capitulos.length + 1;
+      const capitulosNovos = separarCapitulosEmLote(
+        capitulosEmLote,
+        ordemInicial
+      );
+
+      const resultado = await salvarCapitulosDaObra(obraId, capitulosNovos);
+
+      setCapitulosEmLote("");
+
+      setMensagem(
+        `${resultado.total} capítulo(s) processado(s): ${resultado.criados} criado(s), ${resultado.atualizados} atualizado(s).`
+      );
+
+      await carregarDados();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao salvar capítulos em lote.");
+    } finally {
+      setSalvandoLote(false);
+    }
+  }
+
+  async function handleAlterarTipoCapitulo(capitulo, novoTipo) {
+    setAlterandoTipoId(capitulo.id);
+    setMensagem("");
+
+    const tipoAnterior = capitulo.tipo || "Normal";
+
+    setCapitulos((listaAtual) =>
+      listaAtual.map((item) =>
+        item.id === capitulo.id
+          ? {
+              ...item,
+              tipo: novoTipo
+            }
+          : item
+      )
     );
 
-    const obra = {
-      wattpadId: String(dados.id || id),
-      titulo: dados.title || "",
-      autor: dados.user?.name || "",
-      userAutor: dados.user?.username || dados.user?.name || "",
-      link: `https://www.wattpad.com/story/${dados.id || id}`,
-      capa: dados.cover || "",
-      descricao: dados.description || "",
-      capitulos: montarCapitulos(dados.parts || [])
-    };
+    try {
+      await atualizarCapituloDaObra(obraId, capitulo.id, {
+        tipo: novoTipo
+      });
 
-    return res.status(200).json({
-      sucesso: true,
-      obra,
-      cache: {
-        ativo: true,
-        ttlMs: CACHE_TTL_MS
-      },
-      rateLimit: {
-        intervaloMs: RATE_LIMIT_MS
-      }
-    });
-  } catch (erro) {
-    console.error(erro);
+      setMensagem("Tipo do capítulo atualizado.");
+    } catch (erro) {
+      console.error(erro);
 
-    return res.status(500).json({
-      erro: true,
-      tipo: "WATTPAD_OBRA_FETCH_ERROR",
-      mensagem:
-        erro.message ||
-        "Não foi possível buscar os dados da obra no Wattpad.",
-      sugestao:
-        "Confira se o link da obra está correto. Se persistir, cadastre manualmente."
-    });
+      setCapitulos((listaAtual) =>
+        listaAtual.map((item) =>
+          item.id === capitulo.id
+            ? {
+                ...item,
+                tipo: tipoAnterior
+              }
+            : item
+        )
+      );
+
+      setMensagem("Erro ao atualizar tipo do capítulo.");
+    } finally {
+      setAlterandoTipoId("");
+    }
   }
+
+  async function handleExcluirCapitulo(capituloId) {
+    const confirmar = window.confirm(
+      "Tem certeza que deseja excluir este capítulo?"
+    );
+
+    if (!confirmar) return;
+
+    try {
+      await excluirCapitulo(obraId, capituloId);
+      setMensagem("Capítulo excluído com sucesso.");
+      await carregarDados();
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao excluir capítulo.");
+    }
+  }
+
+  async function atualizarDetalhesDeUmCapitulo(capitulo) {
+    if (!capitulo.link && !capitulo.wattpadId) {
+      setMensagem("Este capítulo não possui link ou ID do Wattpad.");
+      return;
+    }
+
+    setAtualizandoCapituloId(capitulo.id);
+    setMensagem("");
+
+    try {
+      const detalhes = await buscarDetalhesCapituloWattpad({
+        capituloId: capitulo.wattpadId,
+        linkCapitulo: capitulo.link
+      });
+
+      await atualizarDetalhesCapitulo(obraId, capitulo.id, detalhes);
+
+      setCapitulos((listaAtual) =>
+        listaAtual.map((item) =>
+          item.id === capitulo.id
+            ? {
+                ...item,
+                wattpadId: detalhes.capituloId || item.wattpadId || "",
+                palavras: Number(detalhes.palavras || 0),
+                paragrafos: Number(detalhes.paragrafos || 0),
+                comentariosTotais: Number(
+                  detalhes.comentariosTotaisCapitulo ||
+                    detalhes.comentariosTotais ||
+                    0
+                ),
+                distribuicaoComentarios: detalhes.distribuicaoComentarios || {
+                  inicio: 0,
+                  meio: 0,
+                  fim: 0,
+                  geral: 0
+                }
+              }
+            : item
+        )
+      );
+
+      setMensagem(
+        `Detalhes atualizados: ${detalhes.palavras} palavras, ${detalhes.paragrafos} parágrafos.`
+      );
+    } catch (erro) {
+      console.error(erro);
+      setMensagem(erro.message || "Erro ao atualizar detalhes do capítulo.");
+    } finally {
+      setAtualizandoCapituloId("");
+    }
+  }
+
+  async function atualizarDetalhesDeTodos() {
+    const confirmar = window.confirm(
+      "Deseja buscar palavras, parágrafos e comentários de todos os capítulos? Isso pode demorar."
+    );
+
+    if (!confirmar) return;
+
+    setAtualizandoTodos(true);
+    setMensagem("");
+
+    try {
+      let atualizados = 0;
+      let falhas = 0;
+
+      for (const capitulo of capitulos) {
+        if (!capitulo.link && !capitulo.wattpadId) {
+          falhas += 1;
+          continue;
+        }
+
+        setMensagem(
+          `Atualizando ${atualizados + falhas + 1}/${capitulos.length}: ${capitulo.titulo}`
+        );
+
+        try {
+          const detalhes = await buscarDetalhesCapituloWattpad({
+            capituloId: capitulo.wattpadId,
+            linkCapitulo: capitulo.link
+          });
+
+          await atualizarDetalhesCapitulo(obraId, capitulo.id, detalhes);
+
+          setCapitulos((listaAtual) =>
+            listaAtual.map((item) =>
+              item.id === capitulo.id
+                ? {
+                    ...item,
+                    wattpadId: detalhes.capituloId || item.wattpadId || "",
+                    palavras: Number(detalhes.palavras || 0),
+                    paragrafos: Number(detalhes.paragrafos || 0),
+                    comentariosTotais: Number(
+                      detalhes.comentariosTotaisCapitulo ||
+                        detalhes.comentariosTotais ||
+                        0
+                    ),
+                    distribuicaoComentarios:
+                      detalhes.distribuicaoComentarios || {
+                        inicio: 0,
+                        meio: 0,
+                        fim: 0,
+                        geral: 0
+                      }
+                  }
+                : item
+            )
+          );
+
+          atualizados += 1;
+        } catch (erro) {
+          console.error("Erro ao atualizar capítulo:", capitulo.titulo, erro);
+          falhas += 1;
+        }
+      }
+
+      setMensagem(
+        `${atualizados} capítulo(s) atualizado(s). ${falhas} capítulo(s) com falha ou sem link.`
+      );
+    } catch (erro) {
+      console.error(erro);
+      setMensagem(erro.message || "Erro ao atualizar detalhes dos capítulos.");
+    } finally {
+      setAtualizandoTodos(false);
+    }
+  }
+
+  useEffect(() => {
+    carregarDados();
+  }, [obraId]);
+
+  if (carregando) {
+    return (
+      <section className="page">
+        <div className="card">
+          <div className="empty-state">Carregando detalhes da obra...</div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!obra) {
+    return (
+      <section className="page">
+        <div className="page-title">
+          <h2>Obra não encontrada</h2>
+          <p>Volte para a lista de obras e tente novamente.</p>
+        </div>
+
+        <Link to="/obras" className="button-secondary">
+          Voltar para obras
+        </Link>
+      </section>
+    );
+  }
+
+  return (
+    <section className="page">
+      <div className="page-title page-title-row">
+        <div>
+          <h2>{obra.titulo}</h2>
+          <p>Edite dados da obra e revise os capítulos cadastrados.</p>
+        </div>
+
+        <Link to="/obras" className="button-secondary">
+          Voltar
+        </Link>
+      </div>
+
+      {mensagem && <div className="notice-card">{mensagem}</div>}
+
+      <div className="obra-header-card">
+        {obra.capa ? (
+          <img src={obra.capa} alt={`Capa da obra ${obra.titulo}`} />
+        ) : (
+          <div className="obra-cover-placeholder">Sem capa</div>
+        )}
+
+        <div>
+          <h3>{obra.titulo}</h3>
+
+          <p>
+            {obra.autor || "Autor não informado"}
+            {obra.userAutor ? ` • @${obra.userAutor}` : ""}
+          </p>
+
+          {obra.link ? (
+            <a href={obra.link} target="_blank" rel="noreferrer">
+              Abrir obra no Wattpad
+            </a>
+          ) : (
+            <p>Obra sem link cadastrado.</p>
+          )}
+
+          <p>
+            Wattpad ID: <strong>{obra.wattpadId || "-"}</strong>
+          </p>
+
+          <p>
+            Capítulos cadastrados: <strong>{capitulos.length}</strong>
+          </p>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3>Editar dados da obra</h3>
+
+        <form className="form-grid" onSubmit={handleSalvarObra}>
+          <label>
+            Título da obra
+            <input
+              type="text"
+              value={tituloObra}
+              onChange={(evento) => setTituloObra(evento.target.value)}
+              placeholder="Título da obra"
+            />
+          </label>
+
+          <div className="form-row-2">
+            <label>
+              Nome do autor
+              <input
+                type="text"
+                value={autor}
+                onChange={(evento) => setAutor(evento.target.value)}
+                placeholder="Nome do autor"
+              />
+            </label>
+
+            <label>
+              User do autor no Wattpad
+              <input
+                type="text"
+                value={userAutor}
+                onChange={(evento) => setUserAutor(evento.target.value)}
+                placeholder="@user"
+              />
+            </label>
+          </div>
+
+          <label>
+            Link da capa
+            <input
+              type="url"
+              value={capa}
+              onChange={(evento) => setCapa(evento.target.value)}
+              placeholder="https://..."
+            />
+          </label>
+
+          <label>
+            Link da obra
+            <input
+              type="url"
+              value={linkObra}
+              onChange={(evento) => setLinkObra(evento.target.value)}
+              placeholder="https://www.wattpad.com/story/..."
+            />
+          </label>
+
+          <button type="submit" className="button-primary" disabled={salvandoObra}>
+            {salvandoObra ? "Salvando..." : "Salvar dados da obra"}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <h3>Cadastrar capítulo manualmente</h3>
+
+        <form className="form-grid" onSubmit={handleSalvarCapitulo}>
+          <label>
+            Título real do capítulo
+            <input
+              type="text"
+              value={titulo}
+              onChange={(evento) => setTitulo(evento.target.value)}
+              placeholder="Ex: Capítulo 14 - Durchbruch"
+            />
+          </label>
+
+          <label>
+            Link do capítulo
+            <input
+              type="url"
+              value={link}
+              onChange={(evento) => setLink(evento.target.value)}
+              placeholder="https://www.wattpad.com/..."
+            />
+          </label>
+
+          <div className="form-row-3">
+            <label>
+              Palavras
+              <input
+                type="number"
+                min="0"
+                value={palavras}
+                onChange={(evento) => setPalavras(evento.target.value)}
+                placeholder="0"
+              />
+            </label>
+
+            <label>
+              Parágrafos
+              <input
+                type="number"
+                min="0"
+                value={paragrafos}
+                onChange={(evento) => setParagrafos(evento.target.value)}
+                placeholder="0"
+              />
+            </label>
+
+            <label>
+              Tipo padrão do capítulo
+              <select
+                value={tipo}
+                onChange={(evento) => setTipo(evento.target.value)}
+              >
+                {TIPOS_CAPITULO.map((tipoCapitulo) => (
+                  <option key={tipoCapitulo} value={tipoCapitulo}>
+                    {tipoCapitulo}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            className="button-primary"
+            disabled={salvandoCapitulo}
+          >
+            {salvandoCapitulo ? "Salvando..." : "Salvar capítulo"}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <h3>Cadastrar vários capítulos</h3>
+
+        <form className="form-grid" onSubmit={handleSalvarCapitulosEmLote}>
+          <label>
+            Capítulos em lote
+            <textarea
+              rows="8"
+              value={capitulosEmLote}
+              onChange={(evento) => setCapitulosEmLote(evento.target.value)}
+              placeholder={
+                "Um por linha, neste formato:\nTítulo do capítulo | link do capítulo | tipo\n\nExemplo:\nCapítulo 1 | https://www.wattpad.com/123456 | Normal\nEspecial do Lobo | https://www.wattpad.com/789101 | Especial"
+              }
+            />
+          </label>
+
+          <div className="notice-card">
+            Se o capítulo já existir, ele será atualizado em vez de duplicado.
+          </div>
+
+          <button type="submit" className="button-primary" disabled={salvandoLote}>
+            {salvandoLote ? "Salvando..." : "Salvar capítulos em lote"}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <div className="page-title-row">
+          <div>
+            <h3>Capítulos cadastrados</h3>
+            <p>
+              Busque palavras, parágrafos e comentários reais do Wattpad para
+              melhorar a conferência.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className="button-primary"
+            onClick={atualizarDetalhesDeTodos}
+            disabled={atualizandoTodos || capitulos.length === 0}
+          >
+            {atualizandoTodos ? "Atualizando..." : "Atualizar todos"}
+          </button>
+        </div>
+
+        {capitulos.length === 0 ? (
+          <div className="empty-state">
+            Nenhum capítulo cadastrado para esta obra.
+          </div>
+        ) : (
+          <div className="chapter-clean-list">
+            {capitulos.map((capitulo) => (
+              <div className="chapter-clean-item" key={capitulo.id}>
+                <div className="chapter-clean-main">
+                  <strong>{limparTituloCapitulo(capitulo.titulo)}</strong>
+
+                  <span>
+                    {capitulo.palavras || 0} palavra(s) •{" "}
+                    {capitulo.paragrafos || 0} parágrafo(s) •{" "}
+                    {capitulo.comentariosTotais || 0} comentário(s)
+                  </span>
+                </div>
+
+                <div className="chapter-clean-type">
+                  <select
+                    value={capitulo.tipo || "Normal"}
+                    onChange={(evento) =>
+                      handleAlterarTipoCapitulo(capitulo, evento.target.value)
+                    }
+                    disabled={atualizandoTodos || alterandoTipoId === capitulo.id}
+                  >
+                    {TIPOS_CAPITULO.map((tipoCapitulo) => (
+                      <option key={tipoCapitulo} value={tipoCapitulo}>
+                        {tipoCapitulo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="chapter-clean-actions">
+                  {capitulo.link && (
+                    <a href={capitulo.link} target="_blank" rel="noreferrer">
+                      Abrir
+                    </a>
+                  )}
+
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => atualizarDetalhesDeUmCapitulo(capitulo)}
+                    disabled={
+                      atualizandoTodos || atualizandoCapituloId === capitulo.id
+                    }
+                  >
+                    {atualizandoCapituloId === capitulo.id
+                      ? "Buscando..."
+                      : "Buscar dados"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="button-danger"
+                    onClick={() => handleExcluirCapitulo(capitulo.id)}
+                    disabled={atualizandoTodos}
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }
