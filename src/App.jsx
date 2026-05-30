@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout.jsx";
 
 import Dashboard from "./pages/Dashboard.jsx";
+import Autores from "./pages/Autores.jsx";
 import Obras from "./pages/Obras.jsx";
 import ObraDetalhes from "./pages/ObraDetalhes.jsx";
 import Subs from "./pages/Subs.jsx";
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/conferencia" element={<Conferencia />} />
           <Route path="/historico" element={<Historico />} />
+          <Route path="/autores" element={<Autores />} />
           <Route path="/obras" element={<Obras />} />
           <Route path="/obras/:obraId" element={<ObraDetalhes />} />
           <Route path="/subs" element={<Subs />} />

@@ -4,6 +4,7 @@ const links = [
   { to: "/dashboard", label: "Início" },
   { to: "/conferencia", label: "Conferência" },
   { to: "/historico", label: "Histórico" },
+  { to: "/autores", label: "Autores" },
   { to: "/obras", label: "Obras" },
   { to: "/subs", label: "Subs" },
   { to: "/regras", label: "Regras" },

@@ -15,6 +15,7 @@ import {
   salvarCapitulosDaObra
 } from "../services/capitulosService.js";
 
+import { listarAutores } from "../services/autoresService.js";
 import { buscarDetalhesCapituloWattpad } from "../services/capitulosDetalhesService.js";
 
 const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
@@ -38,7 +39,9 @@ function separarCapitulosEmLote(texto = "", ordemInicial = 1) {
       const partes = linha.split("|").map((parte) => parte.trim());
 
       return {
-        titulo: limparTituloCapitulo(partes[0] || `Capítulo ${ordemInicial + index}`),
+        titulo: limparTituloCapitulo(
+          partes[0] || `Capítulo ${ordemInicial + index}`
+        ),
         link: partes[1] || "",
         tipo: TIPOS_CAPITULO.includes(partes[2]) ? partes[2] : "Normal",
         palavras: 0,
@@ -60,7 +63,9 @@ export default function ObraDetalhes() {
 
   const [obra, setObra] = useState(null);
   const [capitulos, setCapitulos] = useState([]);
+  const [autores, setAutores] = useState([]);
 
+  const [autorSelecionadoId, setAutorSelecionadoId] = useState("");
   const [tituloObra, setTituloObra] = useState("");
   const [autor, setAutor] = useState("");
   const [userAutor, setUserAutor] = useState("");
@@ -90,7 +95,12 @@ export default function ObraDetalhes() {
     setMensagem("");
 
     try {
-      const obraEncontrada = await buscarObraPorId(obraId);
+      const [obraEncontrada, capitulosEncontrados, autoresEncontrados] =
+        await Promise.all([
+          buscarObraPorId(obraId),
+          listarCapitulosDaObra(obraId),
+          listarAutores()
+        ]);
 
       if (!obraEncontrada) {
         setObra(null);
@@ -99,11 +109,11 @@ export default function ObraDetalhes() {
         return;
       }
 
-      const capitulosEncontrados = await listarCapitulosDaObra(obraId);
-
       setObra(obraEncontrada);
       setCapitulos(capitulosEncontrados);
+      setAutores(autoresEncontrados);
 
+      setAutorSelecionadoId(obraEncontrada.autorId || "");
       setTituloObra(obraEncontrada.titulo || "");
       setAutor(obraEncontrada.autor || "");
       setUserAutor(obraEncontrada.userAutor || "");
@@ -115,6 +125,21 @@ export default function ObraDetalhes() {
     } finally {
       setCarregando(false);
     }
+  }
+
+  function selecionarAutor(autorId) {
+    setAutorSelecionadoId(autorId);
+
+    const autorEncontrado = autores.find((item) => item.id === autorId);
+
+    if (!autorEncontrado) {
+      setAutor("");
+      setUserAutor("");
+      return;
+    }
+
+    setAutor(autorEncontrado.nome || "");
+    setUserAutor(autorEncontrado.user || "");
   }
 
   async function handleSalvarObra(evento) {
@@ -131,6 +156,7 @@ export default function ObraDetalhes() {
     try {
       await atualizarObra(obraId, {
         titulo: tituloObra.trim(),
+        autorId: autorSelecionadoId,
         autor: autor.trim(),
         userAutor: userAutor.replace(/^@/, "").trim(),
         capa: capa.trim(),
@@ -197,7 +223,11 @@ export default function ObraDetalhes() {
 
     try {
       const ordemInicial = capitulos.length + 1;
-      const capitulosNovos = separarCapitulosEmLote(capitulosEmLote, ordemInicial);
+      const capitulosNovos = separarCapitulosEmLote(
+        capitulosEmLote,
+        ordemInicial
+      );
+
       const resultado = await salvarCapitulosDaObra(obraId, capitulosNovos);
 
       setCapitulosEmLote("");
@@ -219,15 +249,39 @@ export default function ObraDetalhes() {
     setAlterandoTipoId(capitulo.id);
     setMensagem("");
 
+    const tipoAnterior = capitulo.tipo || "Normal";
+
+    setCapitulos((listaAtual) =>
+      listaAtual.map((item) =>
+        item.id === capitulo.id
+          ? {
+              ...item,
+              tipo: novoTipo
+            }
+          : item
+      )
+    );
+
     try {
       await atualizarCapituloDaObra(obraId, capitulo.id, {
         tipo: novoTipo
       });
 
       setMensagem("Tipo do capítulo atualizado.");
-      await carregarDados();
     } catch (erro) {
       console.error(erro);
+
+      setCapitulos((listaAtual) =>
+        listaAtual.map((item) =>
+          item.id === capitulo.id
+            ? {
+                ...item,
+                tipo: tipoAnterior
+              }
+            : item
+        )
+      );
+
       setMensagem("Erro ao atualizar tipo do capítulo.");
     } finally {
       setAlterandoTipoId("");
@@ -268,11 +322,33 @@ export default function ObraDetalhes() {
 
       await atualizarDetalhesCapitulo(obraId, capitulo.id, detalhes);
 
+      setCapitulos((listaAtual) =>
+        listaAtual.map((item) =>
+          item.id === capitulo.id
+            ? {
+                ...item,
+                wattpadId: detalhes.capituloId || item.wattpadId || "",
+                palavras: Number(detalhes.palavras || 0),
+                paragrafos: Number(detalhes.paragrafos || 0),
+                comentariosTotais: Number(
+                  detalhes.comentariosTotaisCapitulo ||
+                    detalhes.comentariosTotais ||
+                    0
+                ),
+                distribuicaoComentarios: detalhes.distribuicaoComentarios || {
+                  inicio: 0,
+                  meio: 0,
+                  fim: 0,
+                  geral: 0
+                }
+              }
+            : item
+        )
+      );
+
       setMensagem(
         `Detalhes atualizados: ${detalhes.palavras} palavras, ${detalhes.paragrafos} parágrafos.`
       );
-
-      await carregarDados();
     } catch (erro) {
       console.error(erro);
       setMensagem(erro.message || "Erro ao atualizar detalhes do capítulo.");
@@ -313,6 +389,31 @@ export default function ObraDetalhes() {
 
           await atualizarDetalhesCapitulo(obraId, capitulo.id, detalhes);
 
+          setCapitulos((listaAtual) =>
+            listaAtual.map((item) =>
+              item.id === capitulo.id
+                ? {
+                    ...item,
+                    wattpadId: detalhes.capituloId || item.wattpadId || "",
+                    palavras: Number(detalhes.palavras || 0),
+                    paragrafos: Number(detalhes.paragrafos || 0),
+                    comentariosTotais: Number(
+                      detalhes.comentariosTotaisCapitulo ||
+                        detalhes.comentariosTotais ||
+                        0
+                    ),
+                    distribuicaoComentarios:
+                      detalhes.distribuicaoComentarios || {
+                        inicio: 0,
+                        meio: 0,
+                        fim: 0,
+                        geral: 0
+                      }
+                  }
+                : item
+            )
+          );
+
           atualizados += 1;
         } catch (erro) {
           console.error("Erro ao atualizar capítulo:", capitulo.titulo, erro);
@@ -323,8 +424,6 @@ export default function ObraDetalhes() {
       setMensagem(
         `${atualizados} capítulo(s) atualizado(s). ${falhas} capítulo(s) com falha ou sem link.`
       );
-
-      await carregarDados();
     } catch (erro) {
       console.error(erro);
       setMensagem(erro.message || "Erro ao atualizar detalhes dos capítulos.");
@@ -424,13 +523,32 @@ export default function ObraDetalhes() {
             />
           </label>
 
+          <label>
+            Autor cadastrado
+            <select
+              value={autorSelecionadoId}
+              onChange={(evento) => selecionarAutor(evento.target.value)}
+            >
+              <option value="">Selecionar autor</option>
+
+              {autores.map((autorItem) => (
+                <option key={autorItem.id} value={autorItem.id}>
+                  {autorItem.nome} {autorItem.user ? `• @${autorItem.user}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <div className="form-row-2">
             <label>
               Nome do autor
               <input
                 type="text"
                 value={autor}
-                onChange={(evento) => setAutor(evento.target.value)}
+                onChange={(evento) => {
+                  setAutorSelecionadoId("");
+                  setAutor(evento.target.value);
+                }}
                 placeholder="Nome do autor"
               />
             </label>
@@ -440,7 +558,10 @@ export default function ObraDetalhes() {
               <input
                 type="text"
                 value={userAutor}
-                onChange={(evento) => setUserAutor(evento.target.value)}
+                onChange={(evento) => {
+                  setAutorSelecionadoId("");
+                  setUserAutor(evento.target.value);
+                }}
                 placeholder="@user"
               />
             </label>
