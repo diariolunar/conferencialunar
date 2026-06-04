@@ -83,38 +83,49 @@ function similaridadeAproximada(a = "", b = "") {
 }
 
 function calcularSimilaridadeTokens(textoA = "", textoB = "") {
-  const a = simplificarTextoBusca(textoA);
-  const b = simplificarTextoBusca(textoB);
+  const tokensIgnorados = new Set([
+    "a",
+    "o",
+    "os",
+    "as",
+    "de",
+    "da",
+    "do",
+    "das",
+    "dos",
+    "e",
+    "em",
+    "um",
+    "uma"
+  ]);
 
-  if (!a || !b) return 0;
-  if (a === b) return 1;
-  if (a.includes(b) || b.includes(a)) return 0.9;
+  const tokensA = tokenizarBusca(textoA).filter(
+    (token) => token.length >= 3 && !tokensIgnorados.has(token)
+  );
 
-  const tokensA = new Set(tokenizarBusca(a));
-  const tokensB = new Set(tokenizarBusca(b));
+  const tokensB = tokenizarBusca(textoB).filter(
+    (token) => token.length >= 3 && !tokensIgnorados.has(token)
+  );
 
-  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+  if (tokensA.length === 0 || tokensB.length === 0) return 0;
 
   let intersecao = 0;
 
   tokensA.forEach((tokenA) => {
-    if (tokensB.has(tokenA)) {
-      intersecao += 1;
-      return;
-    }
-
-    const parecido = [...tokensB].some(
-      (tokenB) => similaridadeAproximada(tokenA, tokenB) >= 0.78
+    const encontrou = tokensB.some(
+      (tokenB) =>
+        tokenA === tokenB ||
+        tokenA.includes(tokenB) ||
+        tokenB.includes(tokenA) ||
+        similaridadeAproximada(tokenA, tokenB) >= 0.84
     );
 
-    if (parecido) {
+    if (encontrou) {
       intersecao += 1;
     }
   });
 
-  const uniao = new Set([...tokensA, ...tokensB]).size;
-
-  return intersecao / uniao;
+  return intersecao / Math.max(tokensA.length, tokensB.length);
 }
 
 function calcularSimilaridadeGeral(textoA = "", textoB = "") {
@@ -135,35 +146,11 @@ function pontuarObra(obra, tituloBusca = "") {
   let pontos = 0;
 
   if (titulo.includes(busca) || busca.includes(titulo)) {
-    pontos += 75;
+    pontos += 80;
   }
 
-  pontos += calcularSimilaridadeGeral(tituloObra, tituloBusca) * 80;
-
-  const tokensBusca = tokenizarBusca(tituloBusca);
-  const tokensTitulo = tokenizarBusca(tituloObra);
-
-  const tokensEncontrados = tokensBusca.filter((tokenBusca) =>
-    tokensTitulo.some(
-      (tokenTitulo) =>
-        tokenTitulo.includes(tokenBusca) ||
-        tokenBusca.includes(tokenTitulo) ||
-        similaridadeAproximada(tokenBusca, tokenTitulo) >= 0.78
-    )
-  ).length;
-
-  pontos += tokensEncontrados * 20;
-
-  const autor = obra.autor || "";
-  const userAutor = obra.userAutor || "";
-
-  if (autor) {
-    pontos += calcularSimilaridadeGeral(autor, tituloBusca) * 8;
-  }
-
-  if (userAutor) {
-    pontos += calcularSimilaridadeGeral(userAutor, tituloBusca) * 8;
-  }
+  pontos += calcularSimilaridadeTokens(tituloObra, tituloBusca) * 100;
+  pontos += similaridadeAproximada(tituloObra, tituloBusca) * 40;
 
   return pontos;
 }
@@ -302,22 +289,53 @@ export default function Conferencia() {
   }
 
   function encontrarObraPorTitulo(titulo = "") {
-    const tituloNormalizado = simplificarTextoBusca(titulo);
+    const busca = simplificarTextoBusca(titulo);
 
-    if (!tituloNormalizado) return null;
+    if (!busca) return null;
+
+    const exata = obras.find(
+      (obra) => simplificarTextoBusca(obra.titulo || "") === busca
+    );
+
+    if (exata) return exata;
 
     const candidatos = obras
-      .map((obra) => ({
-        obra,
-        pontos: pontuarObra(obra, titulo)
-      }))
+      .map((obra) => {
+        const tituloObra = simplificarTextoBusca(obra.titulo || "");
+        const similaridadeTokens = calcularSimilaridadeTokens(
+          obra.titulo,
+          titulo
+        );
+        const similaridadeGeral = similaridadeAproximada(obra.titulo, titulo);
+
+        let pontos = 0;
+
+        if (tituloObra.includes(busca) || busca.includes(tituloObra)) {
+          pontos += 80;
+        }
+
+        pontos += similaridadeTokens * 100;
+        pontos += similaridadeGeral * 40;
+
+        return {
+          obra,
+          pontos,
+          similaridadeTokens,
+          similaridadeGeral
+        };
+      })
       .sort((a, b) => b.pontos - a.pontos);
 
     const melhor = candidatos[0];
 
     if (!melhor) return null;
 
-    if (melhor.pontos >= 35) {
+    const confiavel =
+      melhor.pontos >= 75 &&
+      (melhor.similaridadeTokens >= 0.45 ||
+        melhor.similaridadeGeral >= 0.72);
+
+    if (confiavel) {
       return melhor.obra;
     }
 
