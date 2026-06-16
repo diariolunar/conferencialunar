@@ -155,9 +155,25 @@ function pontuarObra(obra, tituloBusca = "") {
   return pontos;
 }
 
+function separarCapitulosManuais(texto = "") {
+  return String(texto || "")
+    .split(/\r?\n|,|;|\||\//)
+    .map((item) =>
+      item
+        .trim()
+        .replace(/^(capitulo|capítulo|cap|parte)\s*/i, "")
+        .trim()
+    )
+    .filter(Boolean);
+}
+
 export default function Conferencia() {
   const [diaSemana, setDiaSemana] = useState("");
   const [textoFicha, setTextoFicha] = useState("");
+  const [modoEntrada, setModoEntrada] = useState("ficha");
+  const [obraManual, setObraManual] = useState("");
+  const [userManual, setUserManual] = useState("");
+  const [capitulosManuais, setCapitulosManuais] = useState("");
 
   const [obras, setObras] = useState([]);
   const [subs, setSubs] = useState([]);
@@ -522,6 +538,97 @@ export default function Conferencia() {
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao preparar conferência.");
+    } finally {
+      setPreparando(false);
+    }
+  }
+
+  async function prepararConferenciaManual(evento) {
+    evento.preventDefault();
+
+    if (!diaSemana) {
+      setMensagem("Selecione obrigatoriamente o dia da leitura.");
+      return;
+    }
+
+    const capitulosInformados = separarCapitulosManuais(capitulosManuais);
+
+    if (!obraManual.trim()) {
+      setMensagem("Informe o nome da obra para a verificação manual.");
+      return;
+    }
+
+    if (!userManual.trim()) {
+      setMensagem("Informe o user do leitor para buscar os comentários.");
+      return;
+    }
+
+    if (capitulosInformados.length === 0) {
+      setMensagem("Informe ao menos um capítulo para verificar.");
+      return;
+    }
+
+    setPreparando(true);
+    setMensagem("");
+    setResultadoVerificacao([]);
+    setProgressoVerificacao({
+      etapa: "",
+      atual: 0,
+      total: 0,
+      titulo: ""
+    });
+
+    try {
+      const ficha = {
+        textoOriginal: [
+          "Verificação manual",
+          `Obra: ${obraManual.trim()}`,
+          `User: ${userManual.replace(/^@/, "").trim()}`,
+          `Capítulos: ${capitulosInformados.join(", ")}`
+        ].join("\n"),
+        sub: "",
+        nomeLeitor: userManual.replace(/^@/, "").trim(),
+        userLeitor: userManual.replace(/^@/, "").trim(),
+        adm: "",
+        obraLida: obraManual.trim(),
+        capitulosInformados,
+        minhaObra: false,
+        feedbackOferecido: false,
+        blocosObras: [
+          {
+            obra: obraManual.trim(),
+            capitulos: capitulosInformados,
+            tudoLido: false,
+            feedbackOferecido: false,
+            minhaObra: false
+          }
+        ],
+        avisos: ["Conferência preparada manualmente."]
+      };
+
+      const preparado = await prepararLeiturasDeBloco(ficha.blocosObras[0]);
+      const capitulosPorObra = {};
+
+      if (preparado.obraEncontrada) {
+        capitulosPorObra[preparado.obraEncontrada.id] =
+          preparado.capitulosDaObra;
+      }
+
+      setPlano({
+        ficha,
+        diaSemana,
+        subSelecionado: "Manual",
+        subEncontrado: false,
+        capitulosPorObra,
+        leituras: preparado.leituras
+      });
+
+      setFichaAberta(false);
+      setInterpretacaoAberta(true);
+      setPlanoAberto(true);
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao preparar verificação manual.");
     } finally {
       setPreparando(false);
     }
@@ -911,37 +1018,100 @@ export default function Conferencia() {
         </summary>
 
         <div className="step-content">
-          <form className="form-grid" onSubmit={prepararConferencia}>
-            <label>
-              Dia da leitura
-              <select
-                value={diaSemana}
-                onChange={(evento) => setDiaSemana(evento.target.value)}
-              >
-                <option value="">Selecione o dia</option>
-
-                {DIAS_SEMANA.map((dia) => (
-                  <option key={dia} value={dia}>
-                    {dia}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Ficha preenchida
-              <textarea
-                rows="12"
-                value={textoFicha}
-                onChange={(evento) => setTextoFicha(evento.target.value)}
-                placeholder="Cole aqui a ficha preenchida pelo membro..."
-              />
-            </label>
-
-            <button type="submit" className="button-primary" disabled={preparando}>
-              {preparando ? "Preparando..." : "Preparar conferência"}
+          <div className="modal-tabs">
+            <button
+              type="button"
+              className={modoEntrada === "ficha" ? "active" : ""}
+              onClick={() => setModoEntrada("ficha")}
+            >
+              Ficha completa
             </button>
-          </form>
+
+            <button
+              type="button"
+              className={modoEntrada === "manual" ? "active" : ""}
+              onClick={() => setModoEntrada("manual")}
+            >
+              Verificação manual
+            </button>
+          </div>
+
+          <label>
+            Dia da leitura
+            <select
+              value={diaSemana}
+              onChange={(evento) => setDiaSemana(evento.target.value)}
+            >
+              <option value="">Selecione o dia</option>
+
+              {DIAS_SEMANA.map((dia) => (
+                <option key={dia} value={dia}>
+                  {dia}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {modoEntrada === "ficha" && (
+            <form className="form-grid manual-entry-form" onSubmit={prepararConferencia}>
+              <label>
+                Ficha preenchida
+                <textarea
+                  rows="12"
+                  value={textoFicha}
+                  onChange={(evento) => setTextoFicha(evento.target.value)}
+                  placeholder="Cole aqui a ficha preenchida pelo membro..."
+                />
+              </label>
+
+              <button type="submit" className="button-primary" disabled={preparando}>
+                {preparando ? "Preparando..." : "Preparar conferência"}
+              </button>
+            </form>
+          )}
+
+          {modoEntrada === "manual" && (
+            <form
+              className="form-grid manual-entry-form"
+              onSubmit={prepararConferenciaManual}
+            >
+              <div className="form-row-2">
+                <label>
+                  Nome da obra
+                  <input
+                    type="text"
+                    value={obraManual}
+                    onChange={(evento) => setObraManual(evento.target.value)}
+                    placeholder="Digite o nome da obra"
+                  />
+                </label>
+
+                <label>
+                  User do leitor
+                  <input
+                    type="text"
+                    value={userManual}
+                    onChange={(evento) => setUserManual(evento.target.value)}
+                    placeholder="@user"
+                  />
+                </label>
+              </div>
+
+              <label>
+                Capítulos
+                <textarea
+                  rows="7"
+                  value={capitulosManuais}
+                  onChange={(evento) => setCapitulosManuais(evento.target.value)}
+                  placeholder={"Um por linha ou separados por vírgula.\nEx: 8\n9\nCapítulo 10"}
+                />
+              </label>
+
+              <button type="submit" className="button-primary" disabled={preparando}>
+                {preparando ? "Preparando..." : "Preparar verificação manual"}
+              </button>
+            </form>
+          )}
         </div>
       </details>
 
@@ -1114,7 +1284,7 @@ export default function Conferencia() {
 
                                   {capitulosDaObra.map((capitulo) => (
                                     <option key={capitulo.id} value={capitulo.id}>
-                                      {capitulo.titulo}
+                                      #{capitulo.ordem || "-"} - {capitulo.titulo}
                                     </option>
                                   ))}
                                 </select>

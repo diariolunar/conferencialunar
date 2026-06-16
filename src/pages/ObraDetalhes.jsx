@@ -87,6 +87,7 @@ export default function ObraDetalhes() {
   const [atualizandoCapituloId, setAtualizandoCapituloId] = useState("");
   const [atualizandoTodos, setAtualizandoTodos] = useState(false);
   const [alterandoTipoId, setAlterandoTipoId] = useState("");
+  const [reordenandoCapitulos, setReordenandoCapitulos] = useState(false);
 
   const [mensagem, setMensagem] = useState("");
 
@@ -286,6 +287,55 @@ export default function ObraDetalhes() {
     } finally {
       setAlterandoTipoId("");
     }
+  }
+
+  async function salvarNovaOrdemCapitulos(listaOrdenada) {
+    setReordenandoCapitulos(true);
+    setMensagem("");
+
+    const listaNormalizada = listaOrdenada.map((capitulo, index) => ({
+      ...capitulo,
+      ordem: index + 1
+    }));
+
+    setCapitulos(listaNormalizada);
+
+    try {
+      await Promise.all(
+        listaNormalizada.map((capitulo) =>
+          atualizarCapituloDaObra(obraId, capitulo.id, {
+            ordem: capitulo.ordem
+          })
+        )
+      );
+
+      setMensagem("Ordem dos capítulos atualizada.");
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao reorganizar capítulos.");
+      await carregarDados();
+    } finally {
+      setReordenandoCapitulos(false);
+    }
+  }
+
+  async function moverCapitulo(indexAtual, direcao) {
+    const novoIndex = indexAtual + direcao;
+
+    if (novoIndex < 0 || novoIndex >= capitulos.length) return;
+
+    const lista = [...capitulos];
+    const [capituloMovido] = lista.splice(indexAtual, 1);
+
+    lista.splice(novoIndex, 0, capituloMovido);
+
+    await salvarNovaOrdemCapitulos(lista);
+  }
+
+  async function normalizarOrdemCapitulos() {
+    if (capitulos.length === 0) return;
+
+    await salvarNovaOrdemCapitulos(capitulos);
   }
 
   async function handleExcluirCapitulo(capituloId) {
@@ -701,14 +751,27 @@ export default function ObraDetalhes() {
             </p>
           </div>
 
-          <button
-            type="button"
-            className="button-primary"
-            onClick={atualizarDetalhesDeTodos}
-            disabled={atualizandoTodos || capitulos.length === 0}
-          >
-            {atualizandoTodos ? "Atualizando..." : "Atualizar todos"}
-          </button>
+          <div className="table-actions">
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={normalizarOrdemCapitulos}
+              disabled={
+                atualizandoTodos || reordenandoCapitulos || capitulos.length === 0
+              }
+            >
+              {reordenandoCapitulos ? "Salvando ordem..." : "Normalizar ordem"}
+            </button>
+
+            <button
+              type="button"
+              className="button-primary"
+              onClick={atualizarDetalhesDeTodos}
+              disabled={atualizandoTodos || capitulos.length === 0}
+            >
+              {atualizandoTodos ? "Atualizando..." : "Atualizar todos"}
+            </button>
+          </div>
         </div>
 
         {capitulos.length === 0 ? (
@@ -717,12 +780,13 @@ export default function ObraDetalhes() {
           </div>
         ) : (
           <div className="chapter-clean-list">
-            {capitulos.map((capitulo) => (
+            {capitulos.map((capitulo, index) => (
               <div className="chapter-clean-item" key={capitulo.id}>
                 <div className="chapter-clean-main">
                   <strong>{limparTituloCapitulo(capitulo.titulo)}</strong>
 
                   <span>
+                    Ordem {capitulo.ordem || index + 1} •{" "}
                     {capitulo.palavras || 0} palavra(s) •{" "}
                     {capitulo.paragrafos || 0} parágrafo(s) •{" "}
                     {capitulo.comentariosTotais || 0} comentário(s)
@@ -746,6 +810,30 @@ export default function ObraDetalhes() {
                 </div>
 
                 <div className="chapter-clean-actions">
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => moverCapitulo(index, -1)}
+                    disabled={
+                      reordenandoCapitulos || atualizandoTodos || index === 0
+                    }
+                  >
+                    Subir
+                  </button>
+
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => moverCapitulo(index, 1)}
+                    disabled={
+                      reordenandoCapitulos ||
+                      atualizandoTodos ||
+                      index === capitulos.length - 1
+                    }
+                  >
+                    Descer
+                  </button>
+
                   {capitulo.link && (
                     <a href={capitulo.link} target="_blank" rel="noreferrer">
                       Abrir

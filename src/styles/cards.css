@@ -624,6 +624,10 @@
   margin-bottom: 28px;
 }
 
+.manual-entry-form {
+  margin-top: 18px;
+}
+
 .conference-list {
   display: grid;
   gap: 18px;

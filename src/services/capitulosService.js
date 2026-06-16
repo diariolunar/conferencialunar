@@ -136,6 +136,24 @@ function extrairNumero(texto = "") {
   return null;
 }
 
+function numeroDoCapitulo(capitulo = {}) {
+  const numeroTitulo = extrairNumero(capitulo.titulo || "");
+  const ordem = Number(capitulo.ordem || 0);
+
+  return {
+    titulo: Number.isFinite(numeroTitulo) ? numeroTitulo : null,
+    ordem: Number.isFinite(ordem) && ordem > 0 ? ordem : null
+  };
+}
+
+function capituloCombinaComNumero(capitulo = {}, numeroBusca = null) {
+  if (!numeroBusca) return true;
+
+  const numero = numeroDoCapitulo(capitulo);
+
+  return numero.ordem === numeroBusca || numero.titulo === numeroBusca;
+}
+
 function limparTituloParaComparacao(texto = "") {
   return simplificarTexto(texto)
     .replace(/^(capitulo|cap|parte|episodio|ep)\s*\d+\s*/i, "")
@@ -153,14 +171,17 @@ function pontuarCapitulo(capitulo, textoBusca = "") {
   if (buscaNormalizada === tituloNormalizado) return 100;
 
   const numeroBusca = extrairNumero(textoBusca);
-  const numeroTitulo = extrairNumero(titulo);
-  const ordem = Number(capitulo.ordem || 0);
+  const numeroCapitulo = numeroDoCapitulo(capitulo);
+
+  if (numeroBusca && !capituloCombinaComNumero(capitulo, numeroBusca)) {
+    return 0;
+  }
 
   let pontos = 0;
 
   if (numeroBusca) {
-    if (ordem === numeroBusca) pontos += 85;
-    if (numeroTitulo === numeroBusca) pontos += 80;
+    if (numeroCapitulo.ordem === numeroBusca) pontos += 100;
+    if (numeroCapitulo.titulo === numeroBusca) pontos += 95;
   }
 
   if (
@@ -409,10 +430,21 @@ export async function excluirCapitulo(obraId, capituloId) {
 
 export function encontrarCapituloPorTexto(capitulos = [], texto = "") {
   const textoNormalizado = simplificarTexto(texto);
+  const numeroBusca = extrairNumero(texto);
 
   if (!textoNormalizado) return null;
 
-  const candidatos = capitulos
+  const capitulosElegiveis = numeroBusca
+    ? capitulos.filter((capitulo) =>
+        capituloCombinaComNumero(capitulo, numeroBusca)
+      )
+    : capitulos;
+
+  if (numeroBusca && capitulosElegiveis.length === 0) {
+    return null;
+  }
+
+  const candidatos = capitulosElegiveis
     .map((capitulo) => ({
       capitulo,
       pontos: pontuarCapitulo(capitulo, texto)
@@ -423,7 +455,7 @@ export function encontrarCapituloPorTexto(capitulos = [], texto = "") {
 
   if (!melhor) return null;
 
-  if (melhor.pontos >= 35) {
+  if (melhor.pontos >= (numeroBusca ? 80 : 45)) {
     return melhor.capitulo;
   }
 
