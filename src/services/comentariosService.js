@@ -11,11 +11,6 @@ function gerarComentarioMock(posicao, index) {
 }
 
 async function buscarComentariosMock({ linkCapitulo, userLeitor }) {
-  console.log("Buscando comentários MOCK:", {
-    linkCapitulo,
-    userLeitor
-  });
-
   await new Promise((resolve) => {
     setTimeout(resolve, 800);
   });
