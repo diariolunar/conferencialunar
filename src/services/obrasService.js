@@ -154,6 +154,14 @@ export async function atualizarObra(obraId, dados) {
 }
 
 export async function excluirObra(obraId) {
+  const capitulosSnapshot = await getDocs(
+    collection(db, OBRAS_COLLECTION, obraId, "capitulos")
+  );
+
+  await Promise.all(
+    capitulosSnapshot.docs.map((capituloDoc) => deleteDoc(capituloDoc.ref))
+  );
+
   const ref = doc(db, OBRAS_COLLECTION, obraId);
   await deleteDoc(ref);
 }

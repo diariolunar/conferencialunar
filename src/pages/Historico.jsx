@@ -10,12 +10,30 @@ import {
 
 import { gerarResumoConferencia } from "../utils/gerarResumoConferencia.js";
 
-const DIAS_PADRAO = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
+const DIAS_PADRAO = ["segunda", "terça", "quarta", "quinta", "sexta"];
+
+function normalizarDiaOrdem(dia = "") {
+  return String(dia || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[-_]+/g, " ")
+    .replace(/\bfeira\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function obterIndiceDia(dia = "") {
+  const diaNormalizado = normalizarDiaOrdem(dia);
+  const diasSemAcento = DIAS_PADRAO.map(normalizarDiaOrdem);
+
+  return diasSemAcento.indexOf(diaNormalizado);
+}
 
 function ordenarDias(dias = []) {
   return [...dias].sort((a, b) => {
-    const indexA = DIAS_PADRAO.indexOf(a);
-    const indexB = DIAS_PADRAO.indexOf(b);
+    const indexA = obterIndiceDia(a);
+    const indexB = obterIndiceDia(b);
 
     if (indexA === -1 && indexB === -1) return a.localeCompare(b);
     if (indexA === -1) return 1;

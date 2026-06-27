@@ -461,3 +461,42 @@ export function encontrarCapituloPorTexto(capitulos = [], texto = "") {
 
   return null;
 }
+
+export function sugerirCapituloPorTexto(capitulos = [], texto = "") {
+  const textoNormalizado = simplificarTexto(texto);
+  const numeroBusca = extrairNumero(texto);
+
+  if (!textoNormalizado) return null;
+
+  const capitulosElegiveis = numeroBusca
+    ? capitulos.filter((capitulo) =>
+        capituloCombinaComNumero(capitulo, numeroBusca)
+      )
+    : capitulos;
+
+  if (capitulosElegiveis.length === 0) {
+    return null;
+  }
+
+  const candidatos = capitulosElegiveis
+    .map((capitulo) => ({
+      capitulo,
+      pontos: pontuarCapitulo(capitulo, texto)
+    }))
+    .sort((a, b) => b.pontos - a.pontos);
+
+  const melhor = candidatos[0];
+
+  if (!melhor) return null;
+
+  const limiteSugestao = numeroBusca ? 45 : 30;
+
+  if (melhor.pontos < limiteSugestao) {
+    return null;
+  }
+
+  return {
+    ...melhor.capitulo,
+    pontosSugestao: melhor.pontos
+  };
+}

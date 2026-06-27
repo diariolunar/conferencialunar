@@ -5,12 +5,30 @@ import {
   listarHistoricoConferencias
 } from "../services/historicoService.js";
 
-const DIAS_ORDEM = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
+const DIAS_ORDEM = ["segunda", "terça", "quarta", "quinta", "sexta"];
+
+function normalizarDiaOrdem(dia = "") {
+  return String(dia || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[-_]+/g, " ")
+    .replace(/\bfeira\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function obterIndiceDia(dia = "") {
+  const diaNormalizado = normalizarDiaOrdem(dia);
+  const diasSemAcento = DIAS_ORDEM.map(normalizarDiaOrdem);
+
+  return diasSemAcento.indexOf(diaNormalizado);
+}
 
 function ordenarPorDia(lista = []) {
   return [...lista].sort(([diaA], [diaB]) => {
-    const indexA = DIAS_ORDEM.indexOf(diaA);
-    const indexB = DIAS_ORDEM.indexOf(diaB);
+    const indexA = obterIndiceDia(diaA);
+    const indexB = obterIndiceDia(diaB);
 
     if (indexA === -1 && indexB === -1) return diaA.localeCompare(diaB);
     if (indexA === -1) return 1;

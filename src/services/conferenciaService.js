@@ -1,14 +1,15 @@
 import { buscarDetalhesCapituloWattpad } from "./capitulosDetalhesService.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 
-function calcularTempoEstimado(palavras = 0) {
+function calcularTempoEstimado(palavras = 0, palavrasPorMinuto = 200) {
   const numeroPalavras = Number(palavras || 0);
+  const ritmo = Number(palavrasPorMinuto || 200);
 
-  if (numeroPalavras <= 0) {
+  if (numeroPalavras <= 0 || ritmo <= 0) {
     return 0;
   }
 
-  return Math.max(1, Math.ceil(numeroPalavras / 220));
+  return Math.max(1, Math.ceil(numeroPalavras / ritmo));
 }
 
 function calcularMinimoComentarios({
@@ -71,8 +72,46 @@ function garantirDistribuicao(distribuicao = {}) {
   };
 }
 
-function gerarResultadoFalha({ capitulo, erro }) {
-  const tempoEstimado = calcularTempoEstimado(capitulo.palavras);
+function capituloEhCurto({ palavras = 0, tipo = "Normal", regras = null }) {
+  const tipoNormalizado = normalizarTexto(tipo);
+  const numeroPalavras = Number(palavras || 0);
+
+  return (
+    tipoNormalizado === "normal" &&
+    numeroPalavras > 0 &&
+    numeroPalavras < Number(regras?.palavrasCapituloCurto || 500)
+  );
+}
+
+function calcularExigencias({ capitulo, palavras = 0, regras = null }) {
+  const tipoNormalizado = normalizarTexto(capitulo.tipo);
+  const ehEspecial = tipoNormalizado === "especial";
+  const ehPoesia = tipoNormalizado === "poesia";
+  const ehNormal = !ehEspecial && !ehPoesia;
+  const ehCurto = capituloEhCurto({
+    palavras,
+    tipo: capitulo.tipo,
+    regras
+  });
+
+  const exigeDistribuicao =
+    ehNormal && !ehCurto && regras?.exigeDistribuicaoNormal !== false;
+
+  const exigeTempo = ehNormal && !ehCurto;
+
+  return {
+    ehNormal,
+    ehCurto,
+    exigeDistribuicao,
+    exigeTempo
+  };
+}
+
+function gerarResultadoFalha({ capitulo, erro, regras }) {
+  const tempoEstimado = calcularTempoEstimado(
+    capitulo.palavras,
+    regras?.palavrasPorMinuto
+  );
 
   return {
     ...capitulo,
@@ -121,7 +160,9 @@ function gerarResultado({
   distribuicao,
   minimoNecessario,
   tempoEstimado,
-  tempoReal
+  tempoReal,
+  palavras,
+  regras
 }) {
   const distribuicaoSegura = garantirDistribuicao(distribuicao);
 
@@ -155,11 +196,11 @@ function gerarResultado({
     };
   }
 
-  const tipoNormalizado = normalizarTexto(capitulo.tipo);
-
-  const ehEspecial = tipoNormalizado === "especial";
-  const ehPoesia = tipoNormalizado === "poesia";
-  const ehNormal = !ehEspecial && !ehPoesia;
+  const exigencias = calcularExigencias({
+    capitulo,
+    palavras: palavras ?? capitulo.palavras,
+    regras
+  });
 
   const motivos = [];
 
@@ -169,20 +210,20 @@ function gerarResultado({
     );
   }
 
-  if (ehNormal && distribuicaoSegura.inicio <= 0) {
+  if (exigencias.exigeDistribuicao && distribuicaoSegura.inicio <= 0) {
     motivos.push("Nenhum comentário do usuário encontrado no início.");
   }
 
-  if (ehNormal && distribuicaoSegura.meio <= 0) {
+  if (exigencias.exigeDistribuicao && distribuicaoSegura.meio <= 0) {
     motivos.push("Nenhum comentário do usuário encontrado no meio.");
   }
 
-  if (ehNormal && distribuicaoSegura.fim <= 0) {
+  if (exigencias.exigeDistribuicao && distribuicaoSegura.fim <= 0) {
     motivos.push("Nenhum comentário do usuário encontrado no fim.");
   }
 
   if (
-    ehNormal &&
+    exigencias.exigeTempo &&
     tempoEstimado > 0 &&
     tempoReal > 0 &&
     tempoReal < tempoEstimado * 0.55
@@ -214,8 +255,9 @@ function gerarResultado({
     regraAplicada: {
       tipo: capitulo.tipo,
       minimoComentarios: minimoNecessario,
-      exigeDistribuicao: ehNormal,
-      exigeTempo: ehNormal,
+      exigeDistribuicao: exigencias.exigeDistribuicao,
+      exigeTempo: exigencias.exigeTempo,
+      capituloCurto: exigencias.ehCurto,
       minhaObra: false,
       comentarioGeralContaQuantidade: true,
       comentarioGeralContaDistribuicao: false
@@ -236,7 +278,10 @@ async function verificarCapituloReal({
   regras,
   userLeitor
 }) {
-  const tempoEstimadoAtual = calcularTempoEstimado(capitulo.palavras);
+  const tempoEstimadoAtual = calcularTempoEstimado(
+    capitulo.palavras,
+    regras?.palavrasPorMinuto
+  );
 
   if (capitulo.minhaObra) {
     return {
@@ -253,7 +298,9 @@ async function verificarCapituloReal({
         },
         minimoNecessario: 0,
         tempoEstimado: tempoEstimadoAtual,
-        tempoReal: 0
+        tempoReal: 0,
+        palavras: capitulo.palavras,
+        regras
       })
     };
   }
@@ -276,7 +323,10 @@ async function verificarCapituloReal({
       }
     );
 
-    const tempoEstimado = calcularTempoEstimado(detalhes.palavras);
+    const tempoEstimado = calcularTempoEstimado(
+      detalhes.palavras,
+      regras?.palavrasPorMinuto
+    );
     const tempoReal = calcularTempoReal(comentariosUsuario);
 
     const minimoNecessario = calcularMinimoComentarios({
@@ -299,12 +349,14 @@ async function verificarCapituloReal({
         distribuicao,
         minimoNecessario,
         tempoEstimado,
-        tempoReal
+        tempoReal,
+        palavras: detalhes.palavras,
+        regras
       })
     };
   } catch (erro) {
     console.error("Erro ao verificar capítulo:", capitulo.titulo, erro);
-    return gerarResultadoFalha({ capitulo, erro });
+    return gerarResultadoFalha({ capitulo, erro, regras });
   }
 }
 

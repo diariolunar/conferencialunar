@@ -10,7 +10,8 @@ import { listarSubs } from "../services/subsService.js";
 
 import {
   encontrarCapituloPorTexto,
-  listarCapitulosDaObra
+  listarCapitulosDaObra,
+  sugerirCapituloPorTexto
 } from "../services/capitulosService.js";
 
 import { buscarRegrasPadrao } from "../services/regrasService.js";
@@ -126,33 +127,6 @@ function calcularSimilaridadeTokens(textoA = "", textoB = "") {
   });
 
   return intersecao / Math.max(tokensA.length, tokensB.length);
-}
-
-function calcularSimilaridadeGeral(textoA = "", textoB = "") {
-  return Math.max(
-    calcularSimilaridadeTokens(textoA, textoB),
-    similaridadeAproximada(textoA, textoB)
-  );
-}
-
-function pontuarObra(obra, tituloBusca = "") {
-  const tituloObra = obra.titulo || "";
-  const busca = simplificarTextoBusca(tituloBusca);
-  const titulo = simplificarTextoBusca(tituloObra);
-
-  if (!busca || !titulo) return 0;
-  if (busca === titulo) return 100;
-
-  let pontos = 0;
-
-  if (titulo.includes(busca) || busca.includes(titulo)) {
-    pontos += 80;
-  }
-
-  pontos += calcularSimilaridadeTokens(tituloObra, tituloBusca) * 100;
-  pontos += similaridadeAproximada(tituloObra, tituloBusca) * 40;
-
-  return pontos;
 }
 
 function separarCapitulosManuais(texto = "") {
@@ -304,18 +278,12 @@ export default function Conferencia() {
     );
   }
 
-  function encontrarObraPorTitulo(titulo = "") {
+  function obterCandidatosObraPorTitulo(titulo = "") {
     const busca = simplificarTextoBusca(titulo);
 
-    if (!busca) return null;
+    if (!busca) return [];
 
-    const exata = obras.find(
-      (obra) => simplificarTextoBusca(obra.titulo || "") === busca
-    );
-
-    if (exata) return exata;
-
-    const candidatos = obras
+    return obras
       .map((obra) => {
         const tituloObra = simplificarTextoBusca(obra.titulo || "");
         const similaridadeTokens = calcularSimilaridadeTokens(
@@ -326,7 +294,10 @@ export default function Conferencia() {
 
         let pontos = 0;
 
-        if (tituloObra.includes(busca) || busca.includes(tituloObra)) {
+        if (
+          tituloObra &&
+          (tituloObra.includes(busca) || busca.includes(tituloObra))
+        ) {
           pontos += 80;
         }
 
@@ -337,10 +308,19 @@ export default function Conferencia() {
           obra,
           pontos,
           similaridadeTokens,
-          similaridadeGeral
+          similaridadeGeral,
+          exata: tituloObra === busca
         };
       })
       .sort((a, b) => b.pontos - a.pontos);
+  }
+
+  function encontrarObraPorTitulo(titulo = "") {
+    const candidatos = obterCandidatosObraPorTitulo(titulo);
+
+    const exata = candidatos.find((candidato) => candidato.exata);
+
+    if (exata) return exata.obra;
 
     const melhor = candidatos[0];
 
@@ -358,12 +338,32 @@ export default function Conferencia() {
     return null;
   }
 
+  function sugerirObraPorTitulo(titulo = "") {
+    const candidatos = obterCandidatosObraPorTitulo(titulo);
+    const melhor = candidatos.find((candidato) => !candidato.exata);
+
+    if (!melhor) return null;
+
+    const sugestaoPossivel =
+      melhor.pontos >= 35 &&
+      (melhor.similaridadeTokens >= 0.25 || melhor.similaridadeGeral >= 0.45);
+
+    if (!sugestaoPossivel) return null;
+
+    return {
+      ...melhor.obra,
+      pontosSugestao: melhor.pontos
+    };
+  }
+
   function montarLeitura({
     textoFicha,
     obra,
     capitulo,
     minhaObra = false,
-    obraInformada = ""
+    obraInformada = "",
+    sugestaoObra = null,
+    sugestaoCapitulo = null
   }) {
     return {
       textoFicha,
@@ -386,7 +386,9 @@ export default function Conferencia() {
       ordem: capitulo?.ordem || "",
       tipo: capitulo?.tipo || "Normal",
       encontrado: Boolean(capitulo),
-      minhaObra
+      minhaObra,
+      sugestaoObra,
+      sugestaoCapitulo
     };
   }
 
@@ -394,6 +396,8 @@ export default function Conferencia() {
     const obraEncontrada = encontrarObraPorTitulo(bloco.obra);
 
     if (!obraEncontrada) {
+      const sugestaoObra = sugerirObraPorTitulo(bloco.obra);
+
       return {
         obraEncontrada: null,
         capitulosDaObra: [],
@@ -403,7 +407,8 @@ export default function Conferencia() {
             obra: null,
             capitulo: null,
             minhaObra: bloco.minhaObra,
-            obraInformada: bloco.obra
+            obraInformada: bloco.obra,
+            sugestaoObra
           })
         )
       };
@@ -455,13 +460,17 @@ export default function Conferencia() {
           capitulosDaObra,
           capituloInformado
         );
+        const sugestaoCapitulo = capituloEncontrado
+          ? null
+          : sugerirCapituloPorTexto(capitulosDaObra, capituloInformado);
 
         return montarLeitura({
           textoFicha: capituloInformado,
           obra: obraEncontrada,
           capitulo: capituloEncontrado,
           minhaObra: bloco.minhaObra,
-          obraInformada: bloco.obra
+          obraInformada: bloco.obra,
+          sugestaoCapitulo
         });
       })
     };
@@ -640,6 +649,11 @@ export default function Conferencia() {
     if (!obra) return;
 
     const capitulos = await listarCapitulosDaObra(obra.id);
+    const textoBusca = plano?.leituras?.[index]?.textoFicha || "";
+    const capituloEncontrado = encontrarCapituloPorTexto(capitulos, textoBusca);
+    const sugestaoCapitulo = capituloEncontrado
+      ? null
+      : sugerirCapituloPorTexto(capitulos, textoBusca);
 
     setPlano((estadoAtual) => {
       const leituras = [...estadoAtual.leituras];
@@ -648,21 +662,24 @@ export default function Conferencia() {
         ...leituras[index],
         obraId: obra.id,
         obraTitulo: obra.titulo,
-        capituloId: "",
-        wattpadId: "",
-        titulo: leituras[index].textoFicha || "",
-        link: "",
-        palavras: 0,
-        paragrafos: 0,
-        comentariosTotais: 0,
-        distribuicaoComentarios: {
+        capituloId: capituloEncontrado?.id || "",
+        wattpadId: capituloEncontrado?.wattpadId || capituloEncontrado?.id || "",
+        titulo: capituloEncontrado?.titulo || leituras[index].textoFicha || "",
+        link: capituloEncontrado?.link || "",
+        palavras: Number(capituloEncontrado?.palavras || 0),
+        paragrafos: Number(capituloEncontrado?.paragrafos || 0),
+        comentariosTotais: Number(capituloEncontrado?.comentariosTotais || 0),
+        distribuicaoComentarios: capituloEncontrado?.distribuicaoComentarios || {
           inicio: 0,
           meio: 0,
           fim: 0,
           geral: 0
         },
-        ordem: "",
-        encontrado: false
+        ordem: capituloEncontrado?.ordem || "",
+        tipo: capituloEncontrado?.tipo || leituras[index].tipo || "Normal",
+        encontrado: Boolean(capituloEncontrado),
+        sugestaoObra: null,
+        sugestaoCapitulo
       };
 
       return {
@@ -702,7 +719,8 @@ export default function Conferencia() {
         },
         ordem: capitulo?.ordem || "",
         tipo: capitulo?.tipo || leitura.tipo || "Normal",
-        encontrado: Boolean(capitulo)
+        encontrado: Boolean(capitulo),
+        sugestaoCapitulo: null
       };
 
       return {
@@ -712,6 +730,24 @@ export default function Conferencia() {
     });
 
     setResultadoVerificacao([]);
+  }
+
+  async function aplicarObraSugerida(index) {
+    const sugestao = plano?.leituras?.[index]?.sugestaoObra;
+
+    if (!sugestao?.id) return;
+
+    await alterarObraDaLeitura(index, sugestao.id);
+    setMensagem(`Obra sugerida aplicada: ${sugestao.titulo}.`);
+  }
+
+  function aplicarCapituloSugerido(index) {
+    const sugestao = plano?.leituras?.[index]?.sugestaoCapitulo;
+
+    if (!sugestao?.id) return;
+
+    alterarCapituloManual(index, sugestao.id);
+    setMensagem(`Capítulo sugerido aplicado: ${sugestao.titulo}.`);
   }
 
   function alterarCampoLeitura(index, campo, valor) {
@@ -812,7 +848,7 @@ export default function Conferencia() {
 
     if (leituraInvalida) {
       setMensagem(
-        "Existe leitura sem título ou link do capítulo. Corrija antes de verificar."
+        "Existe leitura sem título ou link do capítulo. Confirme uma sugestão ou selecione a obra e o capítulo antes de verificar."
       );
       return;
     }
@@ -964,7 +1000,22 @@ export default function Conferencia() {
 
       await salvarConferenciaNoHistorico(payloadHistorico);
 
-      window.location.reload();
+      setMensagem("Conferência salva no histórico.");
+      setPlano(null);
+      setResultadoVerificacao([]);
+      setTextoFicha("");
+      setCapitulosManuais("");
+      setObraManual("");
+      setUserManual("");
+      setProgressoVerificacao({
+        etapa: "",
+        atual: 0,
+        total: 0,
+        titulo: ""
+      });
+      setFichaAberta(true);
+      setInterpretacaoAberta(true);
+      setPlanoAberto(true);
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao salvar conferência.");
@@ -1251,6 +1302,46 @@ export default function Conferencia() {
                                 Remover
                               </button>
                             </div>
+
+                            {!leitura.obraId && leitura.sugestaoObra && (
+                              <div className="notice-card suggestion-card">
+                                <div>
+                                  <strong>Talvez a obra seja esta:</strong>{" "}
+                                  {leitura.sugestaoObra.titulo}
+                                  {leitura.sugestaoObra.autor
+                                    ? ` — ${leitura.sugestaoObra.autor}`
+                                    : ""}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  className="button-secondary"
+                                  onClick={() => aplicarObraSugerida(index)}
+                                >
+                                  Usar esta obra
+                                </button>
+                              </div>
+                            )}
+
+                            {leitura.obraId &&
+                              !leitura.capituloId &&
+                              leitura.sugestaoCapitulo && (
+                                <div className="notice-card suggestion-card">
+                                  <div>
+                                    <strong>Talvez o capítulo seja este:</strong>{" "}
+                                    #{leitura.sugestaoCapitulo.ordem || "-"} —{" "}
+                                    {leitura.sugestaoCapitulo.titulo}
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    className="button-secondary"
+                                    onClick={() => aplicarCapituloSugerido(index)}
+                                  >
+                                    Usar este capítulo
+                                  </button>
+                                </div>
+                              )}
 
                             <div className="form-row-2">
                               <label>

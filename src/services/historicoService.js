@@ -25,7 +25,11 @@ function gerarChaveCapitulo(capitulo = {}) {
 }
 
 function normalizarDia(dia = "") {
-  return normalizarTexto(dia);
+  return normalizarTexto(dia)
+    .replace(/[-_]+/g, " ")
+    .replace(/\bfeira\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizarUser(user = "") {
@@ -59,6 +63,7 @@ export async function salvarConferenciaNoHistorico(conferencia) {
   const ref = await addDoc(collection(db, HISTORICO_COLLECTION), {
     sub: conferencia.sub || "",
     diaSemana: conferencia.diaSemana || "",
+    diaSemanaNormalizado: normalizarDia(conferencia.diaSemana || ""),
     nomeLeitor: conferencia.nomeLeitor || "",
     userLeitor: conferencia.userLeitor || "",
     userLeitorNormalizado: userNormalizado,
@@ -82,12 +87,14 @@ export async function salvarConferenciaNoHistorico(conferencia) {
 export async function atualizarConferenciaNoHistorico(conferenciaId, dados) {
   const ref = doc(db, HISTORICO_COLLECTION, conferenciaId);
   const userNormalizado = normalizarUser(dados.userLeitor || "");
+  const diaNormalizado = normalizarDia(dados.diaSemana || "");
 
   await setDoc(
     ref,
     {
       ...dados,
       userLeitorNormalizado: userNormalizado,
+      diaSemanaNormalizado: diaNormalizado,
       chaveMembro: gerarChaveMembro(dados),
       membroExibicao: formatarMembro(dados),
       atualizadoEm: serverTimestamp()
@@ -143,8 +150,7 @@ export async function verificarDuplicidadeConferencia(conferencia) {
 
   const q = query(
     collection(db, HISTORICO_COLLECTION),
-    where("userLeitorNormalizado", "==", user),
-    where("diaSemana", "==", conferencia.diaSemana || "")
+    where("userLeitorNormalizado", "==", user)
   );
 
   const snapshot = await getDocs(q);
@@ -159,6 +165,10 @@ export async function verificarDuplicidadeConferencia(conferencia) {
       id: documento.id,
       ...documento.data()
     };
+
+    if (normalizarDia(item.diaSemana || "") !== dia) {
+      return;
+    }
 
     const capitulosAntigos = item.capitulos || [];
 
