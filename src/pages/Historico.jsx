@@ -8,6 +8,7 @@ import {
   atualizarConferenciaNoHistorico
 } from "../services/historicoService.js";
 
+import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 import { gerarResumoConferencia } from "../utils/gerarResumoConferencia.js";
 
@@ -88,6 +89,7 @@ function gerarResumoPorSub(sub = "", conferencias = []) {
 }
 
 export default function Historico() {
+  const dialog = useDialog();
   const [historico, setHistorico] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [mensagem, setMensagem] = useState("");
@@ -201,9 +203,12 @@ export default function Historico() {
   }
 
   async function excluirConferencia(conferenciaId) {
-    const confirmar = window.confirm(
-      "Tem certeza que deseja excluir esta conferência do histórico?"
-    );
+    const confirmar = await dialog.confirm({
+      title: "Excluir conferência",
+      message: "Tem certeza que deseja excluir esta conferência do histórico?",
+      confirmLabel: "Excluir",
+      variant: "danger"
+    });
 
     if (!confirmar) return;
 

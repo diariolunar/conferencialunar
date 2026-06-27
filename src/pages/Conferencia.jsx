@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 import { DIAS_SEMANA } from "../utils/diasSemana.js";
 import { interpretarFicha } from "../utils/interpretarFicha.js";
@@ -143,6 +144,7 @@ function separarCapitulosManuais(texto = "") {
 }
 
 export default function Conferencia() {
+  const dialog = useDialog();
   const [diaSemana, setDiaSemana] = useState("");
   const [textoFicha, setTextoFicha] = useState("");
   const [modoEntrada, setModoEntrada] = useState("ficha");
@@ -895,11 +897,16 @@ export default function Conferencia() {
     }
   }
 
-  function aprovarManual(index) {
-    const motivo = window.prompt("Informe o motivo da aprovação manual:");
+  async function aprovarManual(index) {
+    const motivo = await dialog.prompt({
+      title: "Aprovação manual",
+      message: "Informe o motivo da aprovação manual:",
+      inputLabel: "Motivo",
+      required: true,
+      confirmLabel: "Aprovar"
+    });
 
     if (!motivo?.trim()) {
-      setMensagem("A aprovação manual exige motivo obrigatório.");
       return;
     }
 
@@ -986,12 +993,16 @@ export default function Conferencia() {
           .map((item) => `• ${item.obraTitulo} — ${item.capituloTitulo}`)
           .join("\n");
 
-        const continuar = window.confirm(
-          `ATENÇÃO!\n\n` +
+        const continuar = await dialog.confirm({
+          title: "Possível duplicidade",
+          message:
+            `ATENÇÃO!\n\n` +
             `Já existem conferências salvas para:\n\n` +
             `${textoDuplicidade}\n\n` +
-            `Deseja salvar mesmo assim?`
-        );
+            `Deseja salvar mesmo assim?`,
+          confirmLabel: "Salvar mesmo assim",
+          variant: "danger"
+        });
 
         if (!continuar) {
           setMensagem("Salvamento cancelado.");

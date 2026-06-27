@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
+import { DialogProvider } from "./components/DialogProvider.jsx";
 import Layout from "./components/Layout.jsx";
 
 const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
@@ -28,27 +29,29 @@ function LoadingPage() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<LoadingPage />}>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <DialogProvider>
+        <Suspense fallback={<LoadingPage />}>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/conferencia" element={<Conferencia />} />
-            <Route path="/historico" element={<Historico />} />
-            <Route path="/autores" element={<Autores />} />
-            <Route path="/membros" element={<Membros />} />
-            <Route path="/obras" element={<Obras />} />
-            <Route path="/obras/:obraId" element={<ObraDetalhes />} />
-            <Route path="/subs" element={<Subs />} />
-            <Route path="/subs/:subId" element={<SubDetalhes />} />
-            <Route path="/regras" element={<Regras />} />
-            <Route path="/configuracoes" element={<Configuracoes />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/conferencia" element={<Conferencia />} />
+              <Route path="/historico" element={<Historico />} />
+              <Route path="/autores" element={<Autores />} />
+              <Route path="/membros" element={<Membros />} />
+              <Route path="/obras" element={<Obras />} />
+              <Route path="/obras/:obraId" element={<ObraDetalhes />} />
+              <Route path="/subs" element={<Subs />} />
+              <Route path="/subs/:subId" element={<SubDetalhes />} />
+              <Route path="/regras" element={<Regras />} />
+              <Route path="/configuracoes" element={<Configuracoes />} />
 
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Route>
-        </Routes>
-      </Suspense>
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Route>
+          </Routes>
+        </Suspense>
+      </DialogProvider>
     </BrowserRouter>
   );
 }

@@ -6,10 +6,12 @@ import {
   salvarOuAtualizarAutor
 } from "../services/autoresService.js";
 
+import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 
 export default function Autores() {
+  const dialog = useDialog();
   const [autores, setAutores] = useState([]);
   const [busca, setBusca] = useState("");
   const [mensagem, setMensagem] = useState("");
@@ -114,7 +116,12 @@ export default function Autores() {
   }
 
   async function removerAutor(autorId) {
-    const confirmar = window.confirm("Deseja realmente excluir este autor?");
+    const confirmar = await dialog.confirm({
+      title: "Excluir autor",
+      message: "Deseja realmente excluir este autor?",
+      confirmLabel: "Excluir",
+      variant: "danger"
+    });
 
     if (!confirmar) return;
 

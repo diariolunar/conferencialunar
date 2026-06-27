@@ -9,11 +9,13 @@ import {
 } from "../services/obrasService.js";
 
 import { salvarCapitulosDaObra } from "../services/capitulosService.js";
+import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 import { interpretarImportacaoWattpad } from "../utils/interpretarImportacaoWattpad.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 
 export default function Obras() {
+  const dialog = useDialog();
   const [obras, setObras] = useState([]);
   const [busca, setBusca] = useState("");
 
@@ -161,7 +163,13 @@ export default function Obras() {
   }
 
   async function handleExcluir(obraId) {
-    const confirmar = window.confirm("Deseja realmente excluir esta obra?");
+    const confirmar = await dialog.confirm({
+      title: "Excluir obra",
+      message:
+        "Deseja realmente excluir esta obra? Os capítulos cadastrados nela também serão excluídos.",
+      confirmLabel: "Excluir",
+      variant: "danger"
+    });
 
     if (!confirmar) return;
 

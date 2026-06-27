@@ -9,6 +9,7 @@ import {
 
 import { db } from "../firebase/config.js";
 
+import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 
 async function apagarColecaoSimples(nomeColecao) {
@@ -49,6 +50,7 @@ async function apagarObrasComCapitulos() {
 }
 
 export default function Configuracoes() {
+  const dialog = useDialog();
   const [mensagem, setMensagem] = useState("");
   const [apagando, setApagando] = useState("");
 
@@ -68,15 +70,30 @@ export default function Configuracoes() {
     textoConfirmacao,
     acao
   }) {
-    const primeiraConfirmacao = window.confirm(
-      `ATENÇÃO!\n\nVocê está prestes a apagar ${tipo}.\n\nEssa ação não deve ser feita sem certeza.\n\nDeseja continuar?`
-    );
+    const primeiraConfirmacao = await dialog.confirm({
+      title: "Atenção",
+      message:
+        `Você está prestes a apagar ${tipo}.\n\n` +
+        `Essa ação não deve ser feita sem certeza.\n\n` +
+        `Deseja continuar?`,
+      confirmLabel: "Continuar",
+      variant: "danger"
+    });
 
     if (!primeiraConfirmacao) return;
 
-    const segundaConfirmacao = window.prompt(
-      `Confirmação final.\n\nDigite exatamente:\n${textoConfirmacao}\n\npara apagar ${tipo}.`
-    );
+    const segundaConfirmacao = await dialog.prompt({
+      title: "Confirmação final",
+      message:
+        `Digite exatamente:\n${textoConfirmacao}\n\n` +
+        `para apagar ${tipo}.`,
+      inputLabel: "Texto de confirmação",
+      confirmLabel: "Apagar",
+      required: true,
+      variant: "danger"
+    });
+
+    if (segundaConfirmacao === null) return;
 
     if (segundaConfirmacao !== textoConfirmacao) {
       setMensagem("Ação cancelada. Texto de confirmação incorreto.");

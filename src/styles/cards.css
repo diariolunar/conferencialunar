@@ -501,6 +501,40 @@
   margin-top: 24px;
 }
 
+.dialog-modal-backdrop {
+  z-index: 130;
+}
+
+.dialog-modal-card {
+  width: min(600px, 100%);
+}
+
+.dialog-modal-header h3 {
+  margin: 0 0 16px;
+  color: var(--color-gold);
+  font-size: 26px;
+}
+
+.dialog-modal-message {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.dialog-modal-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.dialog-modal-actions {
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
 @keyframes feedback-spin {
   to {
     transform: rotate(360deg);

@@ -17,6 +17,7 @@ import {
 
 import { listarAutores } from "../services/autoresService.js";
 import { buscarDetalhesCapituloWattpad } from "../services/capitulosDetalhesService.js";
+import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 
 const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
@@ -60,6 +61,7 @@ function separarCapitulosEmLote(texto = "", ordemInicial = 1) {
 }
 
 export default function ObraDetalhes() {
+  const dialog = useDialog();
   const { obraId } = useParams();
 
   const [obra, setObra] = useState(null);
@@ -340,9 +342,12 @@ export default function ObraDetalhes() {
   }
 
   async function handleExcluirCapitulo(capituloId) {
-    const confirmar = window.confirm(
-      "Tem certeza que deseja excluir este capítulo?"
-    );
+    const confirmar = await dialog.confirm({
+      title: "Excluir capítulo",
+      message: "Tem certeza que deseja excluir este capítulo?",
+      confirmLabel: "Excluir",
+      variant: "danger"
+    });
 
     if (!confirmar) return;
 
@@ -409,9 +414,12 @@ export default function ObraDetalhes() {
   }
 
   async function atualizarDetalhesDeTodos() {
-    const confirmar = window.confirm(
-      "Deseja buscar palavras, parágrafos e comentários de todos os capítulos? Isso pode demorar."
-    );
+    const confirmar = await dialog.confirm({
+      title: "Atualizar todos os capítulos",
+      message:
+        "Deseja buscar palavras, parágrafos e comentários de todos os capítulos? Isso pode demorar.",
+      confirmLabel: "Atualizar todos"
+    });
 
     if (!confirmar) return;
 
