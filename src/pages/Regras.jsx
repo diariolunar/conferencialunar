@@ -6,6 +6,8 @@ import {
   salvarRegrasPadrao
 } from "../services/regrasService.js";
 
+import FeedbackModal from "../components/FeedbackModal.jsx";
+
 export default function Regras() {
   const [regras, setRegras] = useState(REGRAS_PADRAO);
   const [carregando, setCarregando] = useState(true);
@@ -62,7 +64,11 @@ export default function Regras() {
         <p>Configure os mínimos usados na verificação das leituras.</p>
       </div>
 
-      {mensagem && <div className="notice-card">{mensagem}</div>}
+      <FeedbackModal
+        mensagem={mensagem}
+        carregando={carregando || salvando}
+        onClose={() => setMensagem("")}
+      />
 
       <div className="card">
         <h3>Regra padrão</h3>

@@ -8,6 +8,7 @@ import {
   atualizarConferenciaNoHistorico
 } from "../services/historicoService.js";
 
+import FeedbackModal from "../components/FeedbackModal.jsx";
 import { gerarResumoConferencia } from "../utils/gerarResumoConferencia.js";
 
 const DIAS_PADRAO = ["segunda", "terça", "quarta", "quinta", "sexta"];
@@ -248,7 +249,11 @@ export default function Historico() {
         </button>
       </div>
 
-      {mensagem && <div className="notice-card">{mensagem}</div>}
+      <FeedbackModal
+        mensagem={mensagem}
+        carregando={carregando}
+        onClose={() => setMensagem("")}
+      />
 
       <div className="card">
         <h3>Filtros</h3>

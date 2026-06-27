@@ -17,6 +17,7 @@ import {
 
 import { listarAutores } from "../services/autoresService.js";
 import { buscarDetalhesCapituloWattpad } from "../services/capitulosDetalhesService.js";
+import FeedbackModal from "../components/FeedbackModal.jsx";
 
 const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
 
@@ -524,7 +525,19 @@ export default function ObraDetalhes() {
         </Link>
       </div>
 
-      {mensagem && <div className="notice-card">{mensagem}</div>}
+      <FeedbackModal
+        mensagem={mensagem}
+        carregando={
+          salvandoObra ||
+          salvandoCapitulo ||
+          salvandoLote ||
+          Boolean(atualizandoCapituloId) ||
+          atualizandoTodos ||
+          Boolean(alterandoTipoId) ||
+          reordenandoCapitulos
+        }
+        onClose={() => setMensagem("")}
+      />
 
       <div className="obra-header-card">
         {obra.capa ? (

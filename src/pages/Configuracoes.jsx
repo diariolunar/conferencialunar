@@ -9,6 +9,8 @@ import {
 
 import { db } from "../firebase/config.js";
 
+import FeedbackModal from "../components/FeedbackModal.jsx";
+
 async function apagarColecaoSimples(nomeColecao) {
   const snapshot = await getDocs(collection(db, nomeColecao));
 
@@ -137,7 +139,11 @@ export default function Configuracoes() {
         <p>Status geral, instruções técnicas e manutenção do sistema.</p>
       </div>
 
-      {mensagem && <div className="notice-card">{mensagem}</div>}
+      <FeedbackModal
+        mensagem={mensagem}
+        carregando={Boolean(apagando)}
+        onClose={() => setMensagem("")}
+      />
 
       <div className="card">
         <h3>Status do sistema</h3>

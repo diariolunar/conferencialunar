@@ -6,6 +6,8 @@ import {
   buscarSubPorId
 } from "../services/subsService.js";
 
+import FeedbackModal from "../components/FeedbackModal.jsx";
+
 function transformarImagemDrive(url = "") {
   const texto = String(url || "").trim();
 
@@ -121,7 +123,11 @@ export default function SubDetalhes() {
   if (!sub) {
     return (
       <section className="page">
-        {mensagem && <div className="notice-card">{mensagem}</div>}
+        <FeedbackModal
+          mensagem={mensagem}
+          carregando={carregando || salvando}
+          onClose={() => setMensagem("")}
+        />
 
         <Link className="button-secondary" to="/subs">
           Voltar para subs
@@ -153,7 +159,11 @@ export default function SubDetalhes() {
         </div>
       </div>
 
-      {mensagem && <div className="notice-card">{mensagem}</div>}
+      <FeedbackModal
+        mensagem={mensagem}
+        carregando={carregando || salvando}
+        onClose={() => setMensagem("")}
+      />
 
       <div
         className="sub-hero-card"

@@ -6,6 +6,8 @@ import {
   salvarOuAtualizarSub
 } from "../services/subsService.js";
 
+import FeedbackModal from "../components/FeedbackModal.jsx";
+
 function transformarImagemDrive(url = "") {
   const texto = String(url || "").trim();
 
@@ -142,7 +144,11 @@ export default function Subs() {
         </button>
       </div>
 
-      {mensagem && <div className="notice-card">{mensagem}</div>}
+      <FeedbackModal
+        mensagem={mensagem}
+        carregando={carregando || salvando}
+        onClose={() => setMensagem("")}
+      />
 
       <div className="card">
         <h3>Subs cadastrados</h3>

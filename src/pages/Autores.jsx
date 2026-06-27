@@ -6,6 +6,7 @@ import {
   salvarOuAtualizarAutor
 } from "../services/autoresService.js";
 
+import FeedbackModal from "../components/FeedbackModal.jsx";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 
 export default function Autores() {
@@ -144,7 +145,11 @@ export default function Autores() {
         <p>Cadastre autores para selecionar automaticamente nas obras.</p>
       </div>
 
-      {mensagem && <div className="notice-card">{mensagem}</div>}
+      <FeedbackModal
+        mensagem={mensagem}
+        carregando={salvando}
+        onClose={() => setMensagem("")}
+      />
 
       <div className="card">
         <h3>{formAutor.id ? "Editar autor" : "Cadastrar autor"}</h3>

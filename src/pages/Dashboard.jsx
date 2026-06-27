@@ -5,6 +5,8 @@ import {
   listarHistoricoConferencias
 } from "../services/historicoService.js";
 
+import FeedbackModal from "../components/FeedbackModal.jsx";
+
 const DIAS_ORDEM = ["segunda", "terça", "quarta", "quinta", "sexta"];
 
 function normalizarDiaOrdem(dia = "") {
@@ -90,7 +92,11 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {mensagem && <div className="notice-card">{mensagem}</div>}
+      <FeedbackModal
+        mensagem={mensagem}
+        carregando={carregando}
+        onClose={() => setMensagem("")}
+      />
 
       <div className="card">
         <h3>Resumo geral</h3>

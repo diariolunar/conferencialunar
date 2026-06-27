@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import FeedbackModal from "../components/FeedbackModal.jsx";
 import { DIAS_SEMANA } from "../utils/diasSemana.js";
 import { interpretarFicha } from "../utils/interpretarFicha.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
@@ -1031,7 +1032,11 @@ export default function Conferencia() {
         <p>Cole a ficha, revise as leituras e faça a verificação automática.</p>
       </div>
 
-      {mensagem && <div className="notice-card">{mensagem}</div>}
+      <FeedbackModal
+        mensagem={mensagem}
+        carregando={preparando || verificando || salvandoHistorico}
+        onClose={() => setMensagem("")}
+      />
 
       {verificando && (
         <div className="card">

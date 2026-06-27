@@ -9,6 +9,7 @@ import {
 } from "../services/obrasService.js";
 
 import { salvarCapitulosDaObra } from "../services/capitulosService.js";
+import FeedbackModal from "../components/FeedbackModal.jsx";
 import { interpretarImportacaoWattpad } from "../utils/interpretarImportacaoWattpad.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 
@@ -187,7 +188,11 @@ export default function Obras() {
         </button>
       </div>
 
-      {mensagem && <div className="notice-card">{mensagem}</div>}
+      <FeedbackModal
+        mensagem={mensagem}
+        carregando={importando}
+        onClose={() => setMensagem("")}
+      />
 
       <div className="card">
         <div className="page-title-row">
