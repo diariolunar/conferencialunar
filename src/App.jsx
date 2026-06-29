@@ -14,7 +14,6 @@ const Regras = lazy(() => import("./pages/Regras.jsx"));
 const Conferencia = lazy(() => import("./pages/Conferencia.jsx"));
 const Historico = lazy(() => import("./pages/Historico.jsx"));
 const Configuracoes = lazy(() => import("./pages/Configuracoes.jsx"));
-const Membros = lazy(() => import("./pages/Membros.jsx"));
 
 function LoadingPage() {
   return (
@@ -39,7 +38,6 @@ export default function App() {
               <Route path="/conferencia" element={<Conferencia />} />
               <Route path="/historico" element={<Historico />} />
               <Route path="/autores" element={<Autores />} />
-              <Route path="/membros" element={<Membros />} />
               <Route path="/obras" element={<Obras />} />
               <Route path="/obras/:obraId" element={<ObraDetalhes />} />
               <Route path="/subs" element={<Subs />} />
