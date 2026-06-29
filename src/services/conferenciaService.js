@@ -1,6 +1,16 @@
 import { buscarDetalhesCapituloWattpad } from "./capitulosDetalhesService.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 
+const USERS_APROVACAO_AUTOMATICA = new Set(["rkymae", "jasonscott37"]);
+
+function normalizarUserLeitor(user = "") {
+  return normalizarTexto(user).replace(/^@/, "").trim();
+}
+
+function userTemAprovacaoAutomatica(user = "") {
+  return USERS_APROVACAO_AUTOMATICA.has(normalizarUserLeitor(user));
+}
+
 function calcularTempoEstimado(palavras = 0, palavrasPorMinuto = 200) {
   const numeroPalavras = Number(palavras || 0);
   const ritmo = Number(palavrasPorMinuto || 200);
@@ -104,6 +114,44 @@ function calcularExigencias({ capitulo, palavras = 0, regras = null }) {
     ehCurto,
     exigeDistribuicao,
     exigeTempo
+  };
+}
+
+function gerarResultadoAprovacaoAutomaticaUsuario({ capitulo, regras }) {
+  return {
+    ...capitulo,
+    erroVerificacao: false,
+    resultado: {
+      aprovado: true,
+      aprovadoManualmente: false,
+      motivoAprovacaoManual: "",
+      comentarios: [],
+      motivos: [],
+      regraAplicada: {
+        tipo: capitulo.tipo,
+        minimoComentarios: 0,
+        exigeDistribuicao: false,
+        exigeTempo: false,
+        minhaObra: Boolean(capitulo.minhaObra),
+        usuarioLiberado: true
+      },
+      estatisticas: {
+        comentarios: 0,
+        minimoNecessario: 0,
+        tempoEstimado: calcularTempoEstimado(
+          capitulo.palavras,
+          regras?.palavrasPorMinuto
+        ),
+        tempoReal: 0,
+        distribuicao: {
+          inicio: 0,
+          meio: 0,
+          fim: 0,
+          geral: 0
+        }
+      },
+      observacao: ""
+    }
   };
 }
 
@@ -282,6 +330,10 @@ async function verificarCapituloReal({
     capitulo.palavras,
     regras?.palavrasPorMinuto
   );
+
+  if (userTemAprovacaoAutomatica(userLeitor)) {
+    return gerarResultadoAprovacaoAutomaticaUsuario({ capitulo, regras });
+  }
 
   if (capitulo.minhaObra) {
     return {
