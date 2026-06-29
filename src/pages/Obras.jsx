@@ -8,7 +8,12 @@ import {
   salvarObra
 } from "../services/obrasService.js";
 
-import { salvarCapitulosDaObra } from "../services/capitulosService.js";
+import {
+  atualizarDetalhesCapitulo,
+  listarCapitulosDaObra,
+  salvarCapitulosDaObra
+} from "../services/capitulosService.js";
+import { buscarDetalhesCapituloWattpad } from "../services/capitulosDetalhesService.js";
 import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 import { interpretarImportacaoWattpad } from "../utils/interpretarImportacaoWattpad.js";
@@ -26,6 +31,7 @@ export default function Obras() {
   const [previewImportacao, setPreviewImportacao] = useState(null);
   const [mensagem, setMensagem] = useState("");
   const [importando, setImportando] = useState(false);
+  const [atualizandoObraId, setAtualizandoObraId] = useState("");
 
   const obrasFiltradas = useMemo(() => {
     const termo = normalizarTexto(busca);
@@ -183,6 +189,66 @@ export default function Obras() {
     }
   }
 
+  async function atualizarTodosCapitulosDaObra(obra) {
+    const confirmar = await dialog.confirm({
+      title: "Atualizar capítulos",
+      message: `Deseja buscar palavras, parágrafos e comentários de todos os capítulos cadastrados em "${obra.titulo}"?`,
+      confirmLabel: "Atualizar",
+      variant: "default"
+    });
+
+    if (!confirmar) return;
+
+    setAtualizandoObraId(obra.id);
+    setMensagem(`Atualizando capítulos de "${obra.titulo}"...`);
+
+    try {
+      const capitulos = await listarCapitulosDaObra(obra.id);
+
+      if (capitulos.length === 0) {
+        setMensagem("Esta obra ainda não possui capítulos cadastrados.");
+        return;
+      }
+
+      let atualizados = 0;
+      let falhas = 0;
+      let semLink = 0;
+
+      for (const capitulo of capitulos) {
+        if (!capitulo.link && !capitulo.wattpadId) {
+          semLink += 1;
+          continue;
+        }
+
+        setMensagem(
+          `Atualizando ${atualizados + falhas + semLink + 1}/${capitulos.length}: ${capitulo.titulo}`
+        );
+
+        try {
+          const detalhes = await buscarDetalhesCapituloWattpad({
+            capituloId: capitulo.wattpadId,
+            linkCapitulo: capitulo.link
+          });
+
+          await atualizarDetalhesCapitulo(obra.id, capitulo.id, detalhes);
+          atualizados += 1;
+        } catch (erro) {
+          console.error("Erro ao atualizar capítulo:", capitulo.titulo, erro);
+          falhas += 1;
+        }
+      }
+
+      setMensagem(
+        `"${obra.titulo}": ${atualizados} capítulo(s) atualizado(s), ${falhas} falha(s), ${semLink} sem link ou ID.`
+      );
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao atualizar capítulos da obra.");
+    } finally {
+      setAtualizandoObraId("");
+    }
+  }
+
   return (
     <section className="page">
       <div className="page-title page-title-row">
@@ -198,7 +264,7 @@ export default function Obras() {
 
       <FeedbackModal
         mensagem={mensagem}
-        carregando={importando}
+        carregando={importando || Boolean(atualizandoObraId)}
         onClose={() => setMensagem("")}
       />
 
@@ -248,6 +314,17 @@ export default function Obras() {
                 </div>
 
                 <div className="work-list-actions">
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => atualizarTodosCapitulosDaObra(obra)}
+                    disabled={Boolean(atualizandoObraId)}
+                  >
+                    {atualizandoObraId === obra.id
+                      ? "Atualizando..."
+                      : "Atualizar capítulos"}
+                  </button>
+
                   <Link className="button-secondary" to={`/obras/${obra.id}`}>
                     Detalhes
                   </Link>
