@@ -34,6 +34,7 @@ export default function Obras() {
   const [mensagem, setMensagem] = useState("");
   const [importando, setImportando] = useState(false);
   const [atualizandoObraId, setAtualizandoObraId] = useState("");
+  const [atualizandoTodas, setAtualizandoTodas] = useState(false);
   const [cancelarAtualizacao, setCancelarAtualizacao] = useState(null);
   const [diagnosticando, setDiagnosticando] = useState(false);
   const [relatorioObras, setRelatorioObras] = useState([]);
@@ -269,6 +270,95 @@ export default function Obras() {
     }
   }
 
+  async function atualizarTodasObrasComCapitulosZerados() {
+    const confirmar = await dialog.confirm({
+      title: "Atualizar todas",
+      message:
+        "Deseja atualizar os capítulos zerados de todas as obras? Obras sem capítulos zerados serão puladas.",
+      confirmLabel: "Atualizar todas",
+      variant: "default"
+    });
+
+    if (!confirmar) return;
+
+    let cancelado = false;
+
+    setAtualizandoTodas(true);
+    setAtualizandoObraId("__todas__");
+    setCancelarAtualizacao(() => () => {
+      cancelado = true;
+      setMensagem("Cancelando após o capítulo atual...");
+    });
+    setMensagem("Procurando obras com capítulos zerados...");
+
+    try {
+      const relatorio = await diagnosticarObras(obras);
+      const obrasComZerados = relatorio
+        .map((item) => ({
+          ...item,
+          capitulosZerados: item.capitulos.filter((capitulo) => {
+            const palavras = Number(capitulo.palavras || 0);
+            const paragrafos = Number(capitulo.paragrafos || 0);
+            const temLinkOuId = Boolean(capitulo.link || capitulo.wattpadId);
+
+            return temLinkOuId && (palavras <= 0 || paragrafos <= 0);
+          })
+        }))
+        .filter((item) => item.capitulosZerados.length > 0);
+
+      if (obrasComZerados.length === 0) {
+        setRelatorioObras(relatorio);
+        setMensagem("Nenhuma obra com capítulos zerados para atualizar.");
+        return;
+      }
+
+      let obrasAtualizadas = 0;
+      let capitulosAtualizados = 0;
+      let falhas = 0;
+
+      for (let indice = 0; indice < obrasComZerados.length; indice += 1) {
+        if (cancelado) break;
+
+        const item = obrasComZerados[indice];
+
+        setMensagem(
+          `Atualizando obra ${indice + 1}/${obrasComZerados.length}: ${item.obra.titulo}`
+        );
+
+        const resultado = await atualizarCapitulosDaObraEmLote({
+          obra: item.obra,
+          capitulos: item.capitulosZerados,
+          onProgress: (progresso) => {
+            if (progresso.etapa === "finalizado") return;
+
+            setMensagem(
+              `Obra ${indice + 1}/${obrasComZerados.length} - capítulo ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
+            );
+          },
+          isCancelled: () => cancelado
+        });
+
+        if (resultado.atualizados > 0) obrasAtualizadas += 1;
+        capitulosAtualizados += resultado.atualizados;
+        falhas += resultado.falhas;
+      }
+
+      await carregarObras();
+      setRelatorioObras(await diagnosticarObras(obras));
+
+      setMensagem(
+        `${cancelado ? "Atualização cancelada." : "Atualização concluída."} ${obrasAtualizadas} obra(s) atualizada(s), ${capitulosAtualizados} capítulo(s) corrigido(s), ${falhas} falha(s).`
+      );
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao atualizar todas as obras.");
+    } finally {
+      setAtualizandoTodas(false);
+      setAtualizandoObraId("");
+      setCancelarAtualizacao(null);
+    }
+  }
+
   async function carregarRelatorioObras() {
     setDiagnosticando(true);
     setMensagem("Analisando obras e capítulos cadastrados...");
@@ -316,7 +406,12 @@ export default function Obras() {
 
       <FeedbackModal
         mensagem={mensagem}
-        carregando={importando || Boolean(atualizandoObraId) || diagnosticando}
+        carregando={
+          importando ||
+          Boolean(atualizandoObraId) ||
+          atualizandoTodas ||
+          diagnosticando
+        }
         onCancel={cancelarAtualizacao}
         onClose={() => setMensagem("")}
       />
@@ -344,9 +439,28 @@ export default function Obras() {
         <div className="actions-row report-actions">
           <button
             type="button"
+            className="button-primary"
+            onClick={atualizarTodasObrasComCapitulosZerados}
+            disabled={
+              atualizandoTodas ||
+              Boolean(atualizandoObraId) ||
+              diagnosticando ||
+              obras.length === 0
+            }
+          >
+            {atualizandoTodas ? "Atualizando todas..." : "Atualizar todos"}
+          </button>
+
+          <button
+            type="button"
             className="button-secondary"
             onClick={carregarRelatorioObras}
-            disabled={diagnosticando || obras.length === 0}
+            disabled={
+              atualizandoTodas ||
+              Boolean(atualizandoObraId) ||
+              diagnosticando ||
+              obras.length === 0
+            }
           >
             {diagnosticando ? "Analisando..." : "Diagnosticar obras"}
           </button>
@@ -374,7 +488,7 @@ export default function Obras() {
                   type="button"
                   className="button-secondary"
                   onClick={() => atualizarTodosCapitulosDaObra(item.obra)}
-                  disabled={Boolean(atualizandoObraId)}
+                  disabled={atualizandoTodas || Boolean(atualizandoObraId)}
                 >
                   Atualizar
                 </button>
@@ -413,7 +527,7 @@ export default function Obras() {
                     type="button"
                     className="button-secondary"
                     onClick={() => atualizarTodosCapitulosDaObra(obra)}
-                    disabled={Boolean(atualizandoObraId)}
+                    disabled={atualizandoTodas || Boolean(atualizandoObraId)}
                   >
                     {atualizandoObraId === obra.id
                       ? "Atualizando..."
