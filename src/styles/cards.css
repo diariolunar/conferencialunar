@@ -93,6 +93,13 @@
   flex-shrink: 0;
 }
 
+.suggestion-card span {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
 .page-title-row {
   display: flex;
   align-items: flex-start;
@@ -111,6 +118,45 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.report-actions {
+  justify-content: flex-start;
+  margin: 16px 0 18px;
+}
+
+.works-report {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.works-report-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: rgba(255, 200, 87, 0.025);
+}
+
+.works-report-warning {
+  border-color: rgba(255, 200, 87, 0.34);
+  background: rgba(255, 200, 87, 0.055);
+}
+
+.works-report-item strong {
+  display: block;
+  color: var(--color-gold);
+  margin-bottom: 6px;
+}
+
+.works-report-item span {
+  display: block;
+  color: var(--color-muted);
+  font-size: 14px;
 }
 
 /* STEPS / BLOCOS RECOLHÍVEIS */
@@ -157,14 +203,14 @@
 }
 
 .step-card summary::after {
-  content: "＋";
+  content: "+";
   color: var(--color-gold);
   font-size: 22px;
   font-weight: 900;
 }
 
 .step-card[open] summary::after {
-  content: "−";
+  content: "-";
 }
 
 .step-content {
@@ -1132,6 +1178,11 @@
   }
 
   .history-conference-header {
+    grid-template-columns: 1fr;
+  }
+
+  .works-report-item {
+    display: grid;
     grid-template-columns: 1fr;
   }
 

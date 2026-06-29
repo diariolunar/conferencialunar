@@ -15,6 +15,10 @@ import {
   salvarCapitulosDaObra
 } from "../services/capitulosService.js";
 
+import {
+  atualizarCapitulosDaObraEmLote,
+  formatarResumoAtualizacao
+} from "../services/atualizacaoCapitulosService.js";
 import { listarAutores } from "../services/autoresService.js";
 import { buscarDetalhesCapituloWattpad } from "../services/capitulosDetalhesService.js";
 import { useDialog } from "../components/DialogProvider.jsx";
@@ -91,6 +95,7 @@ export default function ObraDetalhes() {
   const [atualizandoTodos, setAtualizandoTodos] = useState(false);
   const [alterandoTipoId, setAlterandoTipoId] = useState("");
   const [reordenandoCapitulos, setReordenandoCapitulos] = useState(false);
+  const [cancelarAtualizacao, setCancelarAtualizacao] = useState(null);
 
   const [mensagem, setMensagem] = useState("");
 
@@ -423,71 +428,48 @@ export default function ObraDetalhes() {
 
     if (!confirmar) return;
 
+    let cancelado = false;
+
     setAtualizandoTodos(true);
+    setCancelarAtualizacao(() => () => {
+      cancelado = true;
+      setMensagem("Cancelando após o capítulo atual...");
+    });
     setMensagem("");
 
     try {
-      let atualizados = 0;
-      let falhas = 0;
+      const resultado = await atualizarCapitulosDaObraEmLote({
+        obra,
+        capitulos,
+        onProgress: (progresso) => {
+          if (progresso.etapa === "finalizado") return;
 
-      for (const capitulo of capitulos) {
-        if (!capitulo.link && !capitulo.wattpadId) {
-          falhas += 1;
-          continue;
-        }
-
-        setMensagem(
-          `Atualizando ${atualizados + falhas + 1}/${capitulos.length}: ${capitulo.titulo}`
-        );
-
-        try {
-          const detalhes = await buscarDetalhesCapituloWattpad({
-            capituloId: capitulo.wattpadId,
-            linkCapitulo: capitulo.link
-          });
-
-          await atualizarDetalhesCapitulo(obraId, capitulo.id, detalhes);
-
-          setCapitulos((listaAtual) =>
-            listaAtual.map((item) =>
-              item.id === capitulo.id
-                ? {
-                    ...item,
-                    wattpadId: detalhes.capituloId || item.wattpadId || "",
-                    palavras: Number(detalhes.palavras || 0),
-                    paragrafos: Number(detalhes.paragrafos || 0),
-                    comentariosTotais: Number(
-                      detalhes.comentariosTotaisCapitulo ||
-                        detalhes.comentariosTotais ||
-                        0
-                    ),
-                    distribuicaoComentarios:
-                      detalhes.distribuicaoComentarios || {
-                        inicio: 0,
-                        meio: 0,
-                        fim: 0,
-                        geral: 0
-                      }
-                  }
-                : item
-            )
+          setMensagem(
+            `Atualizando ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
           );
+        },
+        isCancelled: () => cancelado
+      });
 
-          atualizados += 1;
-        } catch (erro) {
-          console.error("Erro ao atualizar capítulo:", capitulo.titulo, erro);
-          falhas += 1;
-        }
+      if (resultado.capitulosAtualizados.length > 0) {
+        setCapitulos((listaAtual) =>
+          listaAtual.map((capitulo) => {
+            const atualizado = resultado.capitulosAtualizados.find(
+              (item) => item.id === capitulo.id
+            );
+
+            return atualizado || capitulo;
+          })
+        );
       }
 
-      setMensagem(
-        `${atualizados} capítulo(s) atualizado(s). ${falhas} capítulo(s) com falha ou sem link.`
-      );
+      setMensagem(formatarResumoAtualizacao(resultado));
     } catch (erro) {
       console.error(erro);
       setMensagem(erro.message || "Erro ao atualizar detalhes dos capítulos.");
     } finally {
       setAtualizandoTodos(false);
+      setCancelarAtualizacao(null);
     }
   }
 
@@ -544,6 +526,7 @@ export default function ObraDetalhes() {
           Boolean(alterandoTipoId) ||
           reordenandoCapitulos
         }
+        onCancel={cancelarAtualizacao}
         onClose={() => setMensagem("")}
       />
 

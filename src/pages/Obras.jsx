@@ -9,11 +9,13 @@ import {
 } from "../services/obrasService.js";
 
 import {
-  atualizarDetalhesCapitulo,
-  listarCapitulosDaObra,
   salvarCapitulosDaObra
 } from "../services/capitulosService.js";
-import { buscarDetalhesCapituloWattpad } from "../services/capitulosDetalhesService.js";
+import {
+  atualizarCapitulosDaObraEmLote,
+  diagnosticarObras,
+  formatarResumoAtualizacao
+} from "../services/atualizacaoCapitulosService.js";
 import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 import { interpretarImportacaoWattpad } from "../utils/interpretarImportacaoWattpad.js";
@@ -32,6 +34,9 @@ export default function Obras() {
   const [mensagem, setMensagem] = useState("");
   const [importando, setImportando] = useState(false);
   const [atualizandoObraId, setAtualizandoObraId] = useState("");
+  const [cancelarAtualizacao, setCancelarAtualizacao] = useState(null);
+  const [diagnosticando, setDiagnosticando] = useState(false);
+  const [relatorioObras, setRelatorioObras] = useState([]);
 
   const obrasFiltradas = useMemo(() => {
     const termo = normalizarTexto(busca);
@@ -199,53 +204,54 @@ export default function Obras() {
 
     if (!confirmar) return;
 
+    let cancelado = false;
+
     setAtualizandoObraId(obra.id);
+    setCancelarAtualizacao(() => () => {
+      cancelado = true;
+      setMensagem("Cancelando após o capítulo atual...");
+    });
     setMensagem(`Atualizando capítulos de "${obra.titulo}"...`);
 
     try {
-      const capitulos = await listarCapitulosDaObra(obra.id);
+      const resultado = await atualizarCapitulosDaObraEmLote({
+        obra,
+        onProgress: (progresso) => {
+          if (progresso.etapa === "finalizado") return;
 
-      if (capitulos.length === 0) {
-        setMensagem("Esta obra ainda não possui capítulos cadastrados.");
-        return;
-      }
+          setMensagem(
+            `Atualizando ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
+          );
+        },
+        isCancelled: () => cancelado
+      });
 
-      let atualizados = 0;
-      let falhas = 0;
-      let semLink = 0;
-
-      for (const capitulo of capitulos) {
-        if (!capitulo.link && !capitulo.wattpadId) {
-          semLink += 1;
-          continue;
-        }
-
-        setMensagem(
-          `Atualizando ${atualizados + falhas + semLink + 1}/${capitulos.length}: ${capitulo.titulo}`
-        );
-
-        try {
-          const detalhes = await buscarDetalhesCapituloWattpad({
-            capituloId: capitulo.wattpadId,
-            linkCapitulo: capitulo.link
-          });
-
-          await atualizarDetalhesCapitulo(obra.id, capitulo.id, detalhes);
-          atualizados += 1;
-        } catch (erro) {
-          console.error("Erro ao atualizar capítulo:", capitulo.titulo, erro);
-          falhas += 1;
-        }
-      }
-
-      setMensagem(
-        `"${obra.titulo}": ${atualizados} capítulo(s) atualizado(s), ${falhas} falha(s), ${semLink} sem link ou ID.`
-      );
+      setMensagem(formatarResumoAtualizacao(resultado));
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao atualizar capítulos da obra.");
     } finally {
       setAtualizandoObraId("");
+      setCancelarAtualizacao(null);
+    }
+  }
+
+  async function carregarRelatorioObras() {
+    setDiagnosticando(true);
+    setMensagem("Analisando obras e capítulos cadastrados...");
+
+    try {
+      const relatorio = await diagnosticarObras(obras);
+
+      setRelatorioObras(relatorio);
+      setMensagem(
+        `${relatorio.filter((item) => item.precisaAtencao).length} obra(s) precisam de atenção.`
+      );
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao gerar relatório das obras.");
+    } finally {
+      setDiagnosticando(false);
     }
   }
 
@@ -264,7 +270,8 @@ export default function Obras() {
 
       <FeedbackModal
         mensagem={mensagem}
-        carregando={importando || Boolean(atualizandoObraId)}
+        carregando={importando || Boolean(atualizandoObraId) || diagnosticando}
+        onCancel={cancelarAtualizacao}
         onClose={() => setMensagem("")}
       />
 
@@ -287,6 +294,48 @@ export default function Obras() {
             />
           </label>
         </div>
+
+        <div className="actions-row report-actions">
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={carregarRelatorioObras}
+            disabled={diagnosticando || obras.length === 0}
+          >
+            {diagnosticando ? "Analisando..." : "Diagnosticar obras"}
+          </button>
+        </div>
+
+        {relatorioObras.length > 0 && (
+          <div className="works-report">
+            {relatorioObras.slice(0, 8).map((item) => (
+              <div
+                className={`works-report-item ${
+                  item.precisaAtencao ? "works-report-warning" : ""
+                }`}
+                key={item.obra.id}
+              >
+                <div>
+                  <strong>{item.obra.titulo}</strong>
+                  <span>
+                    {item.resumo.total} capítulo(s) •{" "}
+                    {item.resumo.precisamAtualizar} para atualizar •{" "}
+                    {item.resumo.semLinkOuId} sem link/ID
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => atualizarTodosCapitulosDaObra(item.obra)}
+                  disabled={Boolean(atualizandoObraId)}
+                >
+                  Atualizar
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {obrasFiltradas.length === 0 ? (
           <div className="empty-state">Nenhuma obra encontrada.</div>

@@ -1,19 +1,21 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
+const env = import.meta.env || {};
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  apiKey: env.VITE_FIREBASE_API_KEY || "test-api-key",
 
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN || "test.firebaseapp.com",
 
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  projectId: env.VITE_FIREBASE_PROJECT_ID || "test-project",
 
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET || "test.appspot.com",
 
   messagingSenderId:
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    env.VITE_FIREBASE_MESSAGING_SENDER_ID || "000000000000",
 
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  appId: env.VITE_FIREBASE_APP_ID || "1:000000000000:web:test"
 };
 
 const app = initializeApp(firebaseConfig);

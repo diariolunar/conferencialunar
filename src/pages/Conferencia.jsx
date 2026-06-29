@@ -143,6 +143,12 @@ function separarCapitulosManuais(texto = "") {
     .filter(Boolean);
 }
 
+function rotularConfiancaSugestao(pontos = 0) {
+  if (pontos >= 80) return "Confiança alta";
+  if (pontos >= 55) return "Confiança média";
+  return "Confiança baixa";
+}
+
 export default function Conferencia() {
   const dialog = useDialog();
   const [diaSemana, setDiaSemana] = useState("");
@@ -1327,6 +1333,11 @@ export default function Conferencia() {
                                   {leitura.sugestaoObra.autor
                                     ? ` — ${leitura.sugestaoObra.autor}`
                                     : ""}
+                                  <span>
+                                    {rotularConfiancaSugestao(
+                                      leitura.sugestaoObra.pontosSugestao
+                                    )}
+                                  </span>
                                 </div>
 
                                 <button
@@ -1347,6 +1358,11 @@ export default function Conferencia() {
                                     <strong>Talvez o capítulo seja este:</strong>{" "}
                                     #{leitura.sugestaoCapitulo.ordem || "-"} —{" "}
                                     {leitura.sugestaoCapitulo.titulo}
+                                    <span>
+                                      {rotularConfiancaSugestao(
+                                        leitura.sugestaoCapitulo.pontosSugestao
+                                      )}
+                                    </span>
                                   </div>
 
                                   <button

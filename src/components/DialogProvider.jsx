@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 
 const DialogContext = createContext(null);
 
@@ -16,6 +24,7 @@ export function DialogProvider({ children }) {
   const [dialog, setDialog] = useState(null);
   const [inputValue, setInputValue] = useState("");
   const resolverRef = useRef(null);
+  const dialogRef = useRef(null);
 
   const abrirDialogo = useCallback((config) => {
     return new Promise((resolve) => {
@@ -94,13 +103,73 @@ export function DialogProvider({ children }) {
     finalizarDialogo(true);
   }
 
+  function handleBackdropClick(evento) {
+    if (evento.target === evento.currentTarget && dialog?.type !== "alert") {
+      finalizarDialogo(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!dialog) return undefined;
+
+    const elementoAtivo = document.activeElement;
+
+    window.setTimeout(() => {
+      const primeiroFocavel = dialogRef.current?.querySelector(
+        "input, button, textarea, select, a[href]"
+      );
+
+      primeiroFocavel?.focus();
+    }, 0);
+
+    function handleKeyDown(evento) {
+      if (evento.key === "Escape" && dialog.type !== "alert") {
+        finalizarDialogo(null);
+        return;
+      }
+
+      if (evento.key !== "Tab") return;
+
+      const focaveis = [
+        ...(dialogRef.current?.querySelectorAll(
+          "input, button, textarea, select, a[href]"
+        ) || [])
+      ].filter((item) => !item.disabled);
+
+      if (focaveis.length === 0) return;
+
+      const primeiro = focaveis[0];
+      const ultimo = focaveis[focaveis.length - 1];
+
+      if (evento.shiftKey && document.activeElement === primeiro) {
+        evento.preventDefault();
+        ultimo.focus();
+      } else if (!evento.shiftKey && document.activeElement === ultimo) {
+        evento.preventDefault();
+        primeiro.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      elementoAtivo?.focus?.();
+    };
+  }, [dialog, finalizarDialogo]);
+
   return (
     <DialogContext.Provider value={api}>
       {children}
 
       {dialog && (
-        <div className="modal-backdrop dialog-modal-backdrop" role="presentation">
+        <div
+          className="modal-backdrop dialog-modal-backdrop"
+          role="presentation"
+          onMouseDown={handleBackdropClick}
+        >
           <form
+            ref={dialogRef}
             className="modal-card dialog-modal-card"
             role={dialog.type === "alert" ? "alertdialog" : "dialog"}
             aria-modal="true"
