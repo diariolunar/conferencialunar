@@ -886,14 +886,18 @@ export default function Conferencia() {
       setInterpretacaoAberta(false);
       setPlanoAberto(false);
 
-      const falhas = resultados.filter((item) => item.erroVerificacao).length;
+      const reprovadas = resultados.filter(
+        (item) => item.erroVerificacao || !item.resultado?.aprovado
+      ).length;
 
-      if (falhas > 0) {
+      if (reprovadas > 0) {
         setMensagem(
-          `Verificação concluída com ${falhas} falha(s). Revise os capítulos marcados e aprove manualmente se necessário.`
+          `Leitura reprovada. ${reprovadas} capítulo(s) precisam de revisão. Aperte Ok para conferir os detalhes de cada capítulo.`
         );
       } else {
-        setMensagem("Verificação concluída.");
+        setMensagem(
+          "Leitura aprovada. Todos os capítulos passaram na verificação."
+        );
       }
     } catch (erro) {
       console.error(erro);
@@ -1051,7 +1055,14 @@ export default function Conferencia() {
 
       <FeedbackModal
         mensagem={verificando ? "Verificando no Wattpad..." : mensagem}
-        titulo={verificando ? "Verificação em andamento" : "Aviso"}
+        titulo={
+          verificando
+            ? "Verificação em andamento"
+            : mensagem.startsWith("Leitura aprovada") ||
+                mensagem.startsWith("Leitura reprovada")
+              ? "Resultado da verificação"
+              : "Aviso"
+        }
         carregando={preparando || verificando || salvandoHistorico}
         progresso={
           verificando
