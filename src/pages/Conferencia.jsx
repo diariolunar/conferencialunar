@@ -1407,7 +1407,7 @@ export default function Conferencia() {
 
                                   {capitulosDaObra.map((capitulo) => (
                                     <option key={capitulo.id} value={capitulo.id}>
-                                      #{capitulo.ordem || "-"} - {capitulo.titulo}
+                                      {capitulo.titulo}
                                     </option>
                                   ))}
                                 </select>

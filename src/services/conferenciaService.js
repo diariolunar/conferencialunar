@@ -129,6 +129,10 @@ function gerarResultadoAprovacaoAutomaticaUsuario({ capitulo, regras }) {
     regras
   });
 
+  const inicio = minimoNecessario > 0 ? 1 : 0;
+  const meio = minimoNecessario > 1 ? 1 : 0;
+  const fim = Math.max(0, minimoNecessario - inicio - meio);
+
   return {
     ...capitulo,
     erroVerificacao: false,
@@ -152,9 +156,9 @@ function gerarResultadoAprovacaoAutomaticaUsuario({ capitulo, regras }) {
         tempoEstimado,
         tempoReal: tempoEstimado + 1,
         distribuicao: {
-          inicio: 0,
-          meio: 0,
-          fim: 0,
+          inicio,
+          meio,
+          fim,
           geral: 0
         }
       },

@@ -28,6 +28,12 @@ test("usuário liberado exibe mínimo de comentários e tempo acima do esperado"
   assert.equal(resultado.resultado.estatisticas.comentarios, 6);
   assert.equal(resultado.resultado.estatisticas.tempoEstimado, 10);
   assert.equal(resultado.resultado.estatisticas.tempoReal, 11);
+  assert.deepEqual(resultado.resultado.estatisticas.distribuicao, {
+    inicio: 1,
+    meio: 1,
+    fim: 4,
+    geral: 0
+  });
 });
 
 test("usuário liberado funciona sem diferenciar maiúsculas e minúsculas", async () => {
