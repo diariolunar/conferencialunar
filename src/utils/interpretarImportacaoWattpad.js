@@ -104,12 +104,8 @@ function criarImportacaoVazia() {
 
 function interpretarLinhaCapitulo(linha = "", ordem = 1) {
   const linhaSemOrdem = linha.replace(/^\d+[\).\-–—]\s*/, "").trim();
-  const partes = linhaSemOrdem.split("|").map((parte) => parte.trim());
-
-  const tituloBruto = partes[0] || "";
-  const linkCapitulo = partes[1] || "";
-  const palavras = Number(partes[2] || 0);
-  const paragrafos = Number(partes[3] || 0);
+  const { tituloBruto, linkCapitulo, palavras, paragrafos } =
+    extrairDadosLinhaCapitulo(linhaSemOrdem);
 
   const tituloCapitulo = limparTituloCapitulo(tituloBruto);
 
@@ -123,6 +119,60 @@ function interpretarLinhaCapitulo(linha = "", ordem = 1) {
     paragrafos,
     ordem,
     tipo: detectarTipoCapitulo(tituloCapitulo)
+  };
+}
+
+function extrairDadosLinhaCapitulo(linha = "") {
+  const markdownLink = linha.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)(.*)$/i);
+
+  if (markdownLink) {
+    const metricas = extrairMetricasAposLink(markdownLink[3]);
+
+    return {
+      tituloBruto: markdownLink[1],
+      linkCapitulo: markdownLink[2],
+      ...metricas
+    };
+  }
+
+  const urlMatch = linha.match(/https?:\/\/(?:www\.)?wattpad\.com\/\d+\S*/i);
+
+  if (urlMatch) {
+    const antesDoLink = linha.slice(0, urlMatch.index);
+    const depoisDoLink = linha.slice(urlMatch.index + urlMatch[0].length);
+    const tituloBruto = antesDoLink
+      .replace(/\s*\|\s*$/, "")
+      .replace(/^\[/, "")
+      .replace(/\]$/, "");
+    const metricas = extrairMetricasAposLink(depoisDoLink);
+
+    return {
+      tituloBruto,
+      linkCapitulo: urlMatch[0],
+      ...metricas
+    };
+  }
+
+  const partes = linha.split("|").map((parte) => parte.trim());
+
+  return {
+    tituloBruto: partes[0] || "",
+    linkCapitulo: partes[1] || "",
+    palavras: Number(partes[2] || 0),
+    paragrafos: Number(partes[3] || 0)
+  };
+}
+
+function extrairMetricasAposLink(texto = "") {
+  const partes = String(texto || "")
+    .replace(/^\s*\|\s*/, "")
+    .split("|")
+    .map((parte) => parte.trim())
+    .filter(Boolean);
+
+  return {
+    palavras: Number(partes[0] || 0),
+    paragrafos: Number(partes[1] || 0)
   };
 }
 
