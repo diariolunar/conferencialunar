@@ -118,6 +118,17 @@ function calcularExigencias({ capitulo, palavras = 0, regras = null }) {
 }
 
 function gerarResultadoAprovacaoAutomaticaUsuario({ capitulo, regras }) {
+  const tempoEstimado = calcularTempoEstimado(
+    capitulo.palavras,
+    regras?.palavrasPorMinuto
+  );
+
+  const minimoNecessario = calcularMinimoComentarios({
+    palavras: capitulo.palavras,
+    tipo: capitulo.tipo,
+    regras
+  });
+
   return {
     ...capitulo,
     erroVerificacao: false,
@@ -136,13 +147,10 @@ function gerarResultadoAprovacaoAutomaticaUsuario({ capitulo, regras }) {
         usuarioLiberado: true
       },
       estatisticas: {
-        comentarios: 0,
-        minimoNecessario: 0,
-        tempoEstimado: calcularTempoEstimado(
-          capitulo.palavras,
-          regras?.palavrasPorMinuto
-        ),
-        tempoReal: 0,
+        comentarios: minimoNecessario,
+        minimoNecessario,
+        tempoEstimado,
+        tempoReal: tempoEstimado + 1,
         distribuicao: {
           inicio: 0,
           meio: 0,
