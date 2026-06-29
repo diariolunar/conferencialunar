@@ -1,43 +1,66 @@
 export function interpretarImportacaoWattpad(texto = "") {
+  const importacoes = interpretarImportacoesWattpad(texto);
+
+  return (
+    importacoes[0] || {
+      obra: criarObraVazia(),
+      capitulos: [],
+      totalCapitulos: 0
+    }
+  );
+}
+
+export function interpretarImportacoesWattpad(texto = "") {
   const linhas = String(texto || "")
     .split(/\r?\n/)
     .map((linha) => linha.trim())
     .filter(Boolean);
 
-  let titulo = "";
-  let capa = "";
-  let link = "";
-  let autor = "";
-  let userAutor = "";
-
-  const capitulos = [];
+  const importacoes = [];
+  let atual = criarImportacaoVazia();
   let lendoCapitulos = false;
+
+  function finalizarAtual() {
+    if (!atual.obra.titulo && atual.capitulos.length === 0) return;
+
+    importacoes.push({
+      ...atual,
+      totalCapitulos: atual.capitulos.length
+    });
+  }
 
   linhas.forEach((linha) => {
     const linhaLower = linha.toLowerCase();
 
     if (linhaLower.startsWith("título:") || linhaLower.startsWith("titulo:")) {
-      titulo = limparValor(linha.replace(/^t[íi]tulo\s*:/i, ""));
+      if (atual.obra.titulo || atual.capitulos.length > 0) {
+        finalizarAtual();
+        atual = criarImportacaoVazia();
+      }
+
+      atual.obra.titulo = limparValor(linha.replace(/^t[íi]tulo\s*:/i, ""));
+      lendoCapitulos = false;
       return;
     }
 
     if (linhaLower.startsWith("autor:") || linhaLower.startsWith("autora:")) {
-      autor = limparValor(linha.replace(/^autor(a)?\s*:/i, ""));
+      atual.obra.autor = limparValor(linha.replace(/^autor(a)?\s*:/i, ""));
       return;
     }
 
     if (linhaLower.includes("user") && linhaLower.includes("autor")) {
-      userAutor = limparValor(linha.split(":").slice(1).join(":")).replace(/^@/, "");
+      atual.obra.userAutor = limparValor(linha.split(":").slice(1).join(":")).replace(/^@/, "");
       return;
     }
 
     if (linhaLower.startsWith("capa:")) {
-      capa = limparValor(linha.replace(/^capa\s*:/i, ""));
+      atual.obra.capa = limparValor(linha.replace(/^capa\s*:/i, ""));
       return;
     }
 
     if (linhaLower.startsWith("link:")) {
-      link = limparValor(linha.replace(/^link\s*:/i, ""));
+      atual.obra.link = limparValor(linha.replace(/^link\s*:/i, ""));
+      atual.obra.wattpadId = extrairIdObra(atual.obra.link);
       return;
     }
 
@@ -48,25 +71,34 @@ export function interpretarImportacaoWattpad(texto = "") {
 
     if (!lendoCapitulos) return;
 
-    const capitulo = interpretarLinhaCapitulo(linha, capitulos.length + 1);
+    const capitulo = interpretarLinhaCapitulo(linha, atual.capitulos.length + 1);
 
     if (capitulo) {
-      capitulos.push(capitulo);
+      atual.capitulos.push(capitulo);
     }
   });
 
+  finalizarAtual();
+
+  return importacoes;
+}
+
+function criarObraVazia() {
   return {
-    obra: {
-      titulo,
-      capa,
-      link,
-      autor,
-      userAutor,
-      descricao: "",
-      wattpadId: extrairIdObra(link)
-    },
-    capitulos,
-    totalCapitulos: capitulos.length
+    titulo: "",
+    capa: "",
+    link: "",
+    autor: "",
+    userAutor: "",
+    descricao: "",
+    wattpadId: ""
+  };
+}
+
+function criarImportacaoVazia() {
+  return {
+    obra: criarObraVazia(),
+    capitulos: []
   };
 }
 

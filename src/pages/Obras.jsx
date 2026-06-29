@@ -18,7 +18,7 @@ import {
 } from "../services/atualizacaoCapitulosService.js";
 import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
-import { interpretarImportacaoWattpad } from "../utils/interpretarImportacaoWattpad.js";
+import { interpretarImportacoesWattpad } from "../utils/interpretarImportacaoWattpad.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 
 export default function Obras() {
@@ -129,9 +129,10 @@ export default function Obras() {
       return;
     }
 
-    const dados = interpretarImportacaoWattpad(textoImportacaoManual);
+    const importacoes = interpretarImportacoesWattpad(textoImportacaoManual);
+    const importacoesValidas = importacoes.filter((item) => item.obra.titulo);
 
-    if (!dados.obra.titulo) {
+    if (importacoesValidas.length === 0) {
       setMensagem("Título da obra não encontrado.");
       return;
     }
@@ -139,32 +140,64 @@ export default function Obras() {
     setPreviewImportacao({
       sucesso: true,
       fonte: "bookmarklet",
-      obra: dados.obra,
-      capitulos: dados.capitulos,
-      totalCapitulos: dados.totalCapitulos
+      importacoes: importacoesValidas,
+      obra: importacoesValidas[0].obra,
+      capitulos: importacoesValidas[0].capitulos,
+      totalCapitulos: importacoesValidas.reduce(
+        (total, item) => total + item.totalCapitulos,
+        0
+      )
     });
 
     setMensagem("");
   }
 
   async function salvarImportacao() {
-    if (!previewImportacao?.obra) {
+    if (!previewImportacao?.obra && !previewImportacao?.importacoes?.length) {
       return;
     }
 
     try {
       setImportando(true);
 
-      const obraId = await salvarObra(previewImportacao.obra);
+      const importacoes = previewImportacao.importacoes?.length
+        ? previewImportacao.importacoes
+        : [
+            {
+              obra: previewImportacao.obra,
+              capitulos: previewImportacao.capitulos || [],
+              totalCapitulos: previewImportacao.totalCapitulos || 0
+            }
+          ];
 
-      if (previewImportacao.capitulos?.length) {
-        await salvarCapitulosDaObra(obraId, previewImportacao.capitulos);
+      let obrasSalvas = 0;
+      let capitulosProcessados = 0;
+
+      for (const importacao of importacoes) {
+        setMensagem(
+          `Salvando ${obrasSalvas + 1}/${importacoes.length}: ${importacao.obra.titulo}`
+        );
+
+        const obraId = await salvarObra(importacao.obra);
+
+        if (importacao.capitulos?.length) {
+          const resultado = await salvarCapitulosDaObra(
+            obraId,
+            importacao.capitulos
+          );
+
+          capitulosProcessados += resultado.total;
+        }
+
+        obrasSalvas += 1;
       }
 
       await carregarObras();
       fecharModal();
 
-      setMensagem("Obra salva com sucesso.");
+      setMensagem(
+        `${obrasSalvas} obra(s) salva(s) com sucesso. ${capitulosProcessados} capítulo(s) processado(s).`
+      );
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao salvar obra.");
@@ -254,6 +287,19 @@ export default function Obras() {
       setDiagnosticando(false);
     }
   }
+
+  const importacoesPreview = previewImportacao
+    ? previewImportacao.importacoes?.length
+      ? previewImportacao.importacoes
+      : [
+          {
+            obra: previewImportacao.obra,
+            capitulos: previewImportacao.capitulos || [],
+            totalCapitulos: previewImportacao.totalCapitulos || 0
+          }
+        ]
+    : [];
+  const importacaoUnica = importacoesPreview.length === 1;
 
   return (
     <section className="page">
@@ -398,7 +444,7 @@ export default function Obras() {
             <div className="modal-header">
               <div>
                 <h3>Nova Obra</h3>
-                <p>Importe uma obra do Wattpad.</p>
+                <p>Importe uma ou várias obras do Wattpad.</p>
               </div>
 
               <button type="button" className="modal-close" onClick={fecharModal}>
@@ -427,7 +473,7 @@ export default function Obras() {
             {abaImportacao === "console" && (
               <form className="form-grid" onSubmit={prepararImportacaoManual}>
                 <label>
-                  Cole os dados copiados do Wattpad
+                  Cole um ou vários blocos copiados do Wattpad
                   <textarea
                     rows="12"
                     value={textoImportacaoManual}
@@ -439,7 +485,11 @@ CAPA: https://...
 LINK: https://www.wattpad.com/story/...
 CAPÍTULOS:
 1. Prólogo | https://www.wattpad.com/123456
-2. Capítulo 1 | https://www.wattpad.com/789101`}
+2. Capítulo 1 | https://www.wattpad.com/789101
+
+TÍTULO: Outra obra
+CAPÍTULOS:
+1. Capítulo 1 | https://www.wattpad.com/112233`}
                   />
                 </label>
 
@@ -473,51 +523,87 @@ CAPÍTULOS:
 
             {previewImportacao && (
               <div className="modal-preview">
-                <div className="obra-header-card">
-                  {previewImportacao.obra.capa ? (
-                    <img
-                      src={previewImportacao.obra.capa}
-                      alt={previewImportacao.obra.titulo}
-                    />
-                  ) : (
-                    <div className="obra-cover-placeholder">Sem capa</div>
-                  )}
+                <div className="bulk-import-summary">
+                  <div>
+                    <span>Prévia da importação</span>
+                    <strong>
+                      {importacoesPreview.length} obra(s) encontrada(s)
+                    </strong>
+                  </div>
 
                   <div>
-                    <h3>{previewImportacao.obra.titulo}</h3>
-
-                    <p>
-                      {previewImportacao.obra.autor || "Autor não informado"}
-                      {previewImportacao.obra.userAutor
-                        ? ` • @${previewImportacao.obra.userAutor}`
-                        : ""}
-                    </p>
-
-                    <p>
-                      Capítulos encontrados:{" "}
-                      <strong>{previewImportacao.totalCapitulos}</strong>
-                    </p>
+                    <span>Capítulos</span>
+                    <strong>{previewImportacao.totalCapitulos}</strong>
                   </div>
                 </div>
 
-                <div className="table-wrapper preview-table-wrapper">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Título</th>
-                      </tr>
-                    </thead>
+                <div className="bulk-import-list">
+                  {importacoesPreview.map((importacao, indice) => (
+                    <div
+                      className="bulk-import-work"
+                      key={`${importacao.obra.titulo}-${indice}`}
+                    >
+                      <div className="bulk-import-work-header">
+                        {importacao.obra.capa ? (
+                          <img
+                            src={importacao.obra.capa}
+                            alt={importacao.obra.titulo}
+                          />
+                        ) : (
+                          <div className="bulk-import-cover-placeholder">
+                            Sem capa
+                          </div>
+                        )}
 
-                    <tbody>
-                      {previewImportacao.capitulos.map((capitulo) => (
-                        <tr key={`${capitulo.ordem}-${capitulo.titulo}`}>
-                          <td>{capitulo.ordem}</td>
-                          <td>{capitulo.titulo}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                        <div>
+                          <h3>{importacao.obra.titulo}</h3>
+
+                          <p>
+                            {importacao.obra.autor || "Autor não informado"}
+                            {importacao.obra.userAutor
+                              ? ` • @${importacao.obra.userAutor}`
+                              : ""}
+                          </p>
+
+                          <p>
+                            Capítulos encontrados:{" "}
+                            <strong>{importacao.totalCapitulos}</strong>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="table-wrapper preview-table-wrapper">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>Título</th>
+                            </tr>
+                          </thead>
+
+                          <tbody>
+                            {importacao.capitulos
+                              .slice(0, importacaoUnica ? undefined : 6)
+                              .map((capitulo) => (
+                                <tr
+                                  key={`${capitulo.ordem}-${capitulo.titulo}`}
+                                >
+                                  <td>{capitulo.ordem}</td>
+                                  <td>{capitulo.titulo}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {!importacaoUnica && importacao.capitulos.length > 6 && (
+                        <p className="bulk-import-more">
+                          +{importacao.capitulos.length - 6} capítulo(s) nesta
+                          obra
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
 
                 <div className="actions-row">
@@ -527,7 +613,9 @@ CAPÍTULOS:
                     onClick={salvarImportacao}
                     disabled={importando}
                   >
-                    {importando ? "Salvando..." : "Salvar obra"}
+                    {importando
+                      ? "Salvando..."
+                      : `Salvar ${importacoesPreview.length} obra(s)`}
                   </button>
                 </div>
               </div>
