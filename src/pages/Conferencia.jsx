@@ -1050,39 +1050,23 @@ export default function Conferencia() {
       </div>
 
       <FeedbackModal
-        mensagem={mensagem}
+        mensagem={verificando ? "Verificando no Wattpad..." : mensagem}
+        titulo={verificando ? "Verificação em andamento" : "Aviso"}
         carregando={preparando || verificando || salvandoHistorico}
+        progresso={
+          verificando
+            ? {
+                percentual: percentualProgresso,
+                atual: progressoVerificacao.atual,
+                total: progressoVerificacao.total,
+                titulo:
+                  progressoVerificacao.titulo ||
+                  "Escaneando comentários e parágrafos..."
+              }
+            : null
+        }
         onClose={() => setMensagem("")}
       />
-
-      {verificando && (
-        <div className="card">
-          <h3>Verificando no Wattpad...</h3>
-
-          <div className="verification-progress">
-            <div className="verification-progress-bar">
-              <div
-                className="verification-progress-fill"
-                style={{
-                  width: `${percentualProgresso}%`
-                }}
-              />
-            </div>
-
-            <div className="verification-progress-info">
-              <strong>
-                {percentualProgresso}% • {progressoVerificacao.atual}/
-                {progressoVerificacao.total}
-              </strong>
-
-              <span>
-                {progressoVerificacao.titulo ||
-                  "Escaneando comentários e parágrafos..."}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
 
       <details className="step-card" open={fichaAberta}>
         <summary>

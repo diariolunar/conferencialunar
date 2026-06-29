@@ -4,6 +4,7 @@ export default function FeedbackModal({
   mensagem,
   titulo = "Aviso",
   carregando = false,
+  progresso = null,
   onCancel = null,
   onClose
 }) {
@@ -68,6 +69,28 @@ export default function FeedbackModal({
         <p id="feedback-modal-message" className="feedback-modal-message">
           {mensagem}
         </p>
+
+        {progresso && (
+          <div className="verification-progress feedback-modal-progress">
+            <div className="verification-progress-bar">
+              <div
+                className="verification-progress-fill"
+                style={{
+                  width: `${progresso.percentual || 0}%`
+                }}
+              />
+            </div>
+
+            <div className="verification-progress-info">
+              <strong>
+                {progresso.percentual || 0}% • {progresso.atual || 0}/
+                {progresso.total || 0}
+              </strong>
+
+              <span>{progresso.titulo || "Processando..."}</span>
+            </div>
+          </div>
+        )}
 
         {carregando ? (
           <>

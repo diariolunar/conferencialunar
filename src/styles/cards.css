@@ -533,6 +533,14 @@
   color: var(--color-gold);
 }
 
+.feedback-modal-progress {
+  margin-top: 20px;
+}
+
+.feedback-modal-progress .verification-progress-info {
+  flex-wrap: wrap;
+}
+
 .feedback-modal-spinner {
   width: 22px;
   height: 22px;
