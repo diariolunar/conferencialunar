@@ -11,9 +11,23 @@ const links = [
   { to: "/configuracoes", label: "Configurações" }
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ aberto = false, onClose, onNavigate }) {
   return (
-    <aside className="sidebar">
+    <aside
+      id="sidebar-menu"
+      className={`sidebar ${aberto ? "is-open" : ""}`}
+      aria-label="Menu principal"
+    >
+      <button
+        type="button"
+        className="sidebar-close-button"
+        aria-label="Fechar menu"
+        onClick={onClose}
+      >
+        <span />
+        <span />
+      </button>
+
       <div>
         <div className="sidebar-logo">
           <div className="logo-icon">🌙</div>
@@ -28,7 +42,7 @@ export default function Sidebar() {
 
         <nav className="sidebar-nav">
           {links.map((link) => (
-            <NavLink key={link.to} to={link.to}>
+            <NavLink key={link.to} to={link.to} onClick={onNavigate}>
               {link.label}
             </NavLink>
           ))}

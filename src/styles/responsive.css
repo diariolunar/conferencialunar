@@ -9,24 +9,10 @@
     display: block;
   }
 
-  .sidebar {
-    width: 100%;
-    min-height: auto;
-    position: static;
-  }
-
-  .sidebar-nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .sidebar-exit {
-    margin-top: 26px;
-  }
-
   .app-header {
     flex-direction: column;
     gap: 18px;
-    padding: 26px 24px 16px;
+    padding: 26px 24px 16px 84px;
   }
 
   .page-content {
@@ -35,21 +21,17 @@
 }
 
 @media (max-width: 620px) {
-  .sidebar {
-    padding: 22px 16px;
-  }
-
   .sidebar-logo strong {
     font-size: 24px;
-  }
-
-  .sidebar-nav {
-    grid-template-columns: 1fr;
   }
 
   .app-header h1,
   .page-title h2 {
     font-size: 30px;
+  }
+
+  .app-header {
+    padding: 18px 18px 18px 78px;
   }
 
   .page-title p {
