@@ -858,6 +858,34 @@
   color: var(--color-gold-soft);
 }
 
+.rejection-summary {
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid rgba(255, 107, 107, 0.32);
+  border-radius: 14px;
+  background: rgba(255, 107, 107, 0.055);
+}
+
+.rejection-summary h4 {
+  margin: 0 0 12px;
+  color: var(--color-gold);
+  font-size: 18px;
+}
+
+.rejection-summary pre {
+  margin: 0;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.rejection-summary-actions {
+  margin-top: 16px;
+}
+
 .conference-edit-area {
   margin-bottom: 28px;
 }

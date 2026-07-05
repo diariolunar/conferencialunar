@@ -6,6 +6,7 @@ import { DIAS_SEMANA } from "../utils/diasSemana.js";
 import { interpretarFicha } from "../utils/interpretarFicha.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 import { gerarResumoConferencia } from "../utils/gerarResumoConferencia.js";
+import { gerarTextoReprovacaoConferencia } from "../utils/gerarTextoReprovacaoConferencia.js";
 
 import { listarObras } from "../services/obrasService.js";
 import { listarSubs } from "../services/subsService.js";
@@ -228,6 +229,11 @@ export default function Conferencia() {
       )
     );
   }, [progressoVerificacao]);
+
+  const textoReprovacao = useMemo(
+    () => gerarTextoReprovacaoConferencia(resultadoVerificacao),
+    [resultadoVerificacao]
+  );
 
   async function carregarBase() {
     try {
@@ -961,6 +967,20 @@ export default function Conferencia() {
     }
   }
 
+  async function copiarTextoReprovacao() {
+    if (!textoReprovacao) {
+      setMensagem("Não há reprovações para copiar.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(textoReprovacao);
+      setMensagem("Mensagem da reprovação copiada.");
+    } catch {
+      setMensagem("Não foi possível copiar a mensagem da reprovação.");
+    }
+  }
+
   async function salvarHistorico() {
     try {
       setSalvandoHistorico(true);
@@ -1639,6 +1659,23 @@ export default function Conferencia() {
               </div>
             ))}
           </div>
+
+          {textoReprovacao && (
+            <div className="rejection-summary">
+              <h4>Mensagem da reprovação</h4>
+              <pre>{textoReprovacao}</pre>
+
+              <div className="actions-row rejection-summary-actions">
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={copiarTextoReprovacao}
+                >
+                  Copiar mensagem
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="actions-row">
             <button type="button" className="button-secondary" onClick={copiarResumo}>

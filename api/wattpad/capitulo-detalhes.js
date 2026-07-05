@@ -1,5 +1,7 @@
 const CACHE_TTL_MS = 1000 * 60 * 5;
 const RATE_LIMIT_MS = 450;
+const COMMENT_PAGE_LIMIT = 100;
+const MAX_COMMENT_PAGES = 20;
 
 const cache = globalThis.__wattpadCache || new Map();
 const rateState = globalThis.__wattpadRateState || {
@@ -211,7 +213,7 @@ function montarUrlComentariosGerais(capituloId, afterResourceId = "") {
     `https://www.wattpad.com/v5/comments/namespaces/parts/resources/${capituloId}/comments`
   );
 
-  url.searchParams.set("limit", "100");
+  url.searchParams.set("limit", String(COMMENT_PAGE_LIMIT));
 
   if (afterResourceId) {
     url.searchParams.set("after", afterResourceId);
@@ -225,35 +227,36 @@ async function fetchComentariosGeraisCapitulo(capituloId) {
   let afterResourceId = "";
   let pagina = 0;
 
-  while (pagina < 12) {
+  while (pagina < MAX_COMMENT_PAGES) {
     const url = montarUrlComentariosGerais(capituloId, afterResourceId);
     const dados = await fetchJsonSeguro(url, { comments: [], pagination: {} });
 
     const comentarios = Array.isArray(dados?.comments) ? dados.comments : [];
 
     todosComentarios.push(...comentarios);
+    pagina += 1;
 
     const proximo = dados?.pagination?.after?.resourceId;
 
-    if (!proximo || comentarios.length === 0) break;
+    if (!proximo || comentarios.length === 0) {
+      afterResourceId = "";
+      break;
+    }
 
     afterResourceId = proximo;
-    pagina += 1;
   }
 
-  return todosComentarios;
+  return {
+    comentarios: todosComentarios,
+    paginasConsultadas: pagina,
+    limitePaginas: MAX_COMMENT_PAGES,
+    truncada: Boolean(afterResourceId) && pagina >= MAX_COMMENT_PAGES,
+    proximoAfter: afterResourceId
+  };
 }
 
 function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
-  const mapaHtml = new Map();
-
-  paragrafosHtml.forEach((paragrafoHtml) => {
-    if (paragrafoHtml.id) {
-      mapaHtml.set(paragrafoHtml.id, paragrafoHtml);
-    }
-  });
-
-  const base =
+  const todos =
     paragrafosHtml.length > 0
       ? paragrafosHtml
       : paragrafosApi.map((paragrafoApi, index) => ({
@@ -262,19 +265,6 @@ function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
           texto: "",
           palavras: 0
         }));
-
-  const idsBase = new Set(base.map((paragrafo) => paragrafo.id).filter(Boolean));
-
-  const extrasApi = paragrafosApi
-    .filter((paragrafoApi) => paragrafoApi.id && !idsBase.has(paragrafoApi.id))
-    .map((paragrafoApi, index) => ({
-      id: paragrafoApi.id,
-      indice: base.length + index,
-      texto: "",
-      palavras: 0
-    }));
-
-  const todos = [...base, ...extrasApi];
   const totalReal = todos.length;
 
   const mapaApi = new Map();
@@ -344,6 +334,29 @@ function encontrarParagrafoNoMapa(mapaParagrafos, paragrafoId = "") {
   );
 }
 
+function extrairNomeUsuarioComentario(comentario = {}) {
+  return (
+    comentario.user?.name ||
+    comentario.user?.username ||
+    comentario.user?.login ||
+    comentario.author?.name ||
+    comentario.author?.username ||
+    comentario.username ||
+    ""
+  );
+}
+
+function extrairTextoComentario(comentario = {}) {
+  return (
+    comentario.text ||
+    comentario.comment ||
+    comentario.body ||
+    comentario.message ||
+    comentario.content ||
+    ""
+  );
+}
+
 function normalizarComentario({ comentario, capituloId, mapaParagrafos }) {
   const paragrafoId = extrairParagrafoIdDoComentario(comentario, capituloId);
   const paragrafo = encontrarParagrafoNoMapa(mapaParagrafos, paragrafoId);
@@ -357,9 +370,9 @@ function normalizarComentario({ comentario, capituloId, mapaParagrafos }) {
     id:
       comentario.commentId?.resourceId ||
       `${comentario.resource?.resourceId || capituloId}-${comentario.created || ""}`,
-    texto: comentario.text || "",
-    user: comentario.user?.name || "",
-    avatar: comentario.user?.avatar || "",
+    texto: extrairTextoComentario(comentario),
+    user: extrairNomeUsuarioComentario(comentario),
+    avatar: comentario.user?.avatar || comentario.author?.avatar || "",
     criadoEm: comentario.created || "",
     modificadoEm: comentario.modified || "",
     link: comentario.deeplink || "",
@@ -385,7 +398,9 @@ function filtrarComentariosDoUsuario({
 
   return comentarios
     .filter((comentario) => {
-      const nomeComentario = normalizarUser(comentario.user?.name || "");
+      const nomeComentario = normalizarUser(
+        extrairNomeUsuarioComentario(comentario)
+      );
       return nomeComentario === userNormalizado;
     })
     .map((comentario) =>
@@ -439,12 +454,13 @@ export default async function handler(req, res) {
       });
     }
 
-    const [html, paragrafosApi, comentariosGerais] = await Promise.all([
+    const [html, paragrafosApi, buscaComentarios] = await Promise.all([
       fetchTextoCapitulo(id),
       fetchParagrafosApi(id),
       fetchComentariosGeraisCapitulo(id)
     ]);
 
+    const comentariosGerais = buscaComentarios.comentarios || [];
     const paragrafosHtml = extrairParagrafosDoHtml(html);
     const paragrafos = combinarParagrafos(paragrafosHtml, paragrafosApi);
 
@@ -477,6 +493,11 @@ export default async function handler(req, res) {
       distribuicaoComentarios: distribuicaoComentariosUsuario,
       comentariosUsuario,
       paragrafosDetalhados: paragrafos,
+      buscaComentarios: {
+        paginasConsultadas: buscaComentarios.paginasConsultadas || 0,
+        limitePaginas: buscaComentarios.limitePaginas || MAX_COMMENT_PAGES,
+        truncada: Boolean(buscaComentarios.truncada)
+      },
       cache: {
         ativo: true,
         ttlMs: CACHE_TTL_MS
@@ -486,7 +507,8 @@ export default async function handler(req, res) {
       },
       avisos: {
         textoEncontrado: paragrafos.length > 0,
-        comentariosEncontrados: comentariosGerais.length > 0
+        comentariosEncontrados: comentariosGerais.length > 0,
+        comentariosPossivelmenteIncompletos: Boolean(buscaComentarios.truncada)
       }
     });
   } catch (erro) {
@@ -503,3 +525,12 @@ export default async function handler(req, res) {
     });
   }
 }
+
+export const __testables = {
+  combinarParagrafos,
+  contarDistribuicaoComentarios,
+  extrairNomeUsuarioComentario,
+  extrairParagrafoIdDoComentario,
+  filtrarComentariosDoUsuario,
+  normalizarComentario
+};

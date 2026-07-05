@@ -222,7 +222,8 @@ function gerarResultado({
   tempoEstimado,
   tempoReal,
   palavras,
-  regras
+  regras,
+  avisos = null
 }) {
   const distribuicaoSegura = garantirDistribuicao(distribuicao);
 
@@ -293,10 +294,21 @@ function gerarResultado({
 
   const comentariosGerais = distribuicaoSegura.geral;
 
-  const observacao =
-    comentariosGerais > 0
-      ? `${comentariosGerais} comentário(s) geral(is) encontrado(s). Eles contam para a quantidade mínima, mas não substituem comentários no início, meio e fim.`
-      : "";
+  const observacoes = [];
+
+  if (comentariosGerais > 0) {
+    observacoes.push(
+      `${comentariosGerais} comentário(s) geral(is) encontrado(s). Eles contam para a quantidade mínima, mas não substituem comentários no início, meio e fim.`
+    );
+  }
+
+  if (avisos?.comentariosPossivelmenteIncompletos) {
+    observacoes.push(
+      "A busca no Wattpad chegou ao limite de páginas de comentários. A verificação pode não incluir comentários mais antigos."
+    );
+  }
+
+  const observacao = observacoes.join(" ");
 
   return {
     aprovado: motivos.length === 0,
@@ -415,7 +427,8 @@ async function verificarCapituloReal({
         tempoEstimado,
         tempoReal,
         palavras: detalhes.palavras,
-        regras
+        regras,
+        avisos: detalhes.avisos
       })
     };
   } catch (erro) {
