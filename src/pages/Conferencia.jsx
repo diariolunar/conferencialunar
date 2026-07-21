@@ -27,6 +27,19 @@ import {
 
 const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
 
+function montarRegrasJornadaMistica(regras = {}) {
+  return {
+    ...regras,
+    minimoNormal: 12,
+    minimoCurto: 12,
+    minimoLongo: 12,
+    minimoEspecial: 1,
+    minimoPoesia: 1,
+    exigeDistribuicaoNormal: false,
+    exigeTempoNormal: false
+  };
+}
+
 function simplificarTextoBusca(texto = "") {
   return normalizarTexto(texto)
     .replace(/[^a-z0-9\s]/g, " ")
@@ -158,6 +171,8 @@ export default function Conferencia() {
   const [obraManual, setObraManual] = useState("");
   const [userManual, setUserManual] = useState("");
   const [capitulosManuais, setCapitulosManuais] = useState("");
+  const [obraJornada, setObraJornada] = useState("");
+  const [userJornada, setUserJornada] = useState("");
 
   const [obras, setObras] = useState([]);
   const [subs, setSubs] = useState([]);
@@ -658,6 +673,114 @@ export default function Conferencia() {
     }
   }
 
+  async function prepararConferenciaJornada(evento) {
+    evento.preventDefault();
+
+    if (!obraJornada.trim()) {
+      setMensagem("Informe o nome da obra da Jornada Mística.");
+      return;
+    }
+
+    if (!userJornada.trim()) {
+      setMensagem("Informe o user do leitor para buscar os comentários.");
+      return;
+    }
+
+    setPreparando(true);
+    setMensagem("");
+    setResultadoVerificacao([]);
+    setProgressoVerificacao({
+      etapa: "",
+      atual: 0,
+      total: 0,
+      titulo: ""
+    });
+
+    try {
+      const obraEncontrada = encontrarObraPorTitulo(obraJornada);
+
+      if (!obraEncontrada) {
+        const sugestao = sugerirObraPorTitulo(obraJornada);
+
+        setMensagem(
+          sugestao
+            ? `Obra não encontrada. Talvez seja "${sugestao.titulo}". Ajuste o nome e tente novamente.`
+            : "Obra não encontrada no cadastro."
+        );
+        return;
+      }
+
+      const capitulosDaObra = await listarCapitulosDaObra(obraEncontrada.id);
+      const capitulosOrdenados = [...capitulosDaObra].sort(
+        (a, b) => Number(a.ordem || 0) - Number(b.ordem || 0)
+      );
+
+      if (capitulosOrdenados.length === 0) {
+        setMensagem("A obra encontrada não tem capítulos cadastrados.");
+        return;
+      }
+
+      const userTratado = userJornada.replace(/^@/, "").trim();
+      const leituras = capitulosOrdenados.map((capitulo) =>
+        montarLeitura({
+          textoFicha: capitulo.titulo,
+          obra: obraEncontrada,
+          capitulo,
+          obraInformada: obraJornada.trim()
+        })
+      );
+
+      setPlano({
+        modalidade: "jornada-mistica",
+        regrasConferencia: montarRegrasJornadaMistica(regras),
+        ficha: {
+          textoOriginal: [
+            "Jornada Mística",
+            `Obra: ${obraEncontrada.titulo}`,
+            `User: ${userTratado}`,
+            `Capítulos: todos (${leituras.length})`
+          ].join("\n"),
+          sub: "Jornada Mística",
+          nomeLeitor: userTratado,
+          userLeitor: userTratado,
+          adm: "",
+          obraLida: obraEncontrada.titulo,
+          capitulosInformados: leituras.map((leitura) => leitura.titulo),
+          minhaObra: false,
+          feedbackOferecido: false,
+          blocosObras: [
+            {
+              obra: obraEncontrada.titulo,
+              capitulos: leituras.map((leitura) => leitura.titulo),
+              tudoLido: true,
+              feedbackOferecido: false,
+              minhaObra: false
+            }
+          ],
+          avisos: [
+            "Jornada Mística: todos os capítulos cadastrados da obra serão verificados."
+          ]
+        },
+        diaSemana: "Jornada Mística",
+        subSelecionado: "Jornada Mística",
+        subEncontrado: true,
+        capitulosPorObra: {
+          [obraEncontrada.id]: capitulosOrdenados
+        },
+        leituras
+      });
+
+      setFichaAberta(false);
+      setInterpretacaoAberta(true);
+      setPlanoAberto(true);
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao preparar Jornada Mística.");
+    } finally {
+      setPreparando(false);
+    }
+  }
+
   async function alterarObraDaLeitura(index, obraId) {
     const obra = obras.find((item) => item.id === obraId) || null;
 
@@ -882,7 +1005,7 @@ export default function Conferencia() {
       const resultados = await verificarLeiturasPreparadas({
         leituras: plano.leituras,
         userLeitor: plano.ficha.userLeitor,
-        regras,
+        regras: plano.regrasConferencia || regras,
         onProgress: (progresso) => {
           setProgressoVerificacao(progresso);
         }
@@ -1122,23 +1245,33 @@ export default function Conferencia() {
             >
               Verificação manual
             </button>
+
+            <button
+              type="button"
+              className={modoEntrada === "jornada" ? "active" : ""}
+              onClick={() => setModoEntrada("jornada")}
+            >
+              Jornada Mística
+            </button>
           </div>
 
-          <label>
-            Dia da leitura
-            <select
-              value={diaSemana}
-              onChange={(evento) => setDiaSemana(evento.target.value)}
-            >
-              <option value="">Selecione o dia</option>
+          {modoEntrada !== "jornada" && (
+            <label>
+              Dia da leitura
+              <select
+                value={diaSemana}
+                onChange={(evento) => setDiaSemana(evento.target.value)}
+              >
+                <option value="">Selecione o dia</option>
 
-              {DIAS_SEMANA.map((dia) => (
-                <option key={dia} value={dia}>
-                  {dia}
-                </option>
-              ))}
-            </select>
-          </label>
+                {DIAS_SEMANA.map((dia) => (
+                  <option key={dia} value={dia}>
+                    {dia}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           {modoEntrada === "ficha" && (
             <form className="form-grid manual-entry-form" onSubmit={prepararConferencia}>
@@ -1197,6 +1330,44 @@ export default function Conferencia() {
 
               <button type="submit" className="button-primary" disabled={preparando}>
                 {preparando ? "Preparando..." : "Preparar verificação manual"}
+              </button>
+            </form>
+          )}
+
+          {modoEntrada === "jornada" && (
+            <form
+              className="form-grid manual-entry-form"
+              onSubmit={prepararConferenciaJornada}
+            >
+              <div className="form-row-2">
+                <label>
+                  Nome da obra
+                  <input
+                    type="text"
+                    value={obraJornada}
+                    onChange={(evento) => setObraJornada(evento.target.value)}
+                    placeholder="Digite o nome da obra"
+                  />
+                </label>
+
+                <label>
+                  User do leitor
+                  <input
+                    type="text"
+                    value={userJornada}
+                    onChange={(evento) => setUserJornada(evento.target.value)}
+                    placeholder="@user"
+                  />
+                </label>
+              </div>
+
+              <div className="notice-card">
+                Jornada Mística verifica todos os capítulos cadastrados da obra.
+                Capítulos normais exigem 12 comentários e especiais exigem 1.
+              </div>
+
+              <button type="submit" className="button-primary" disabled={preparando}>
+                {preparando ? "Preparando..." : "Preparar Jornada Mística"}
               </button>
             </form>
           )}
@@ -1268,7 +1439,9 @@ export default function Conferencia() {
                       <li key={`${bloco.obra}-${index}`}>
                         <strong>{bloco.obra}</strong> —{" "}
                         {bloco.tudoLido
-                          ? "lida inteira, conferindo últimos 2 capítulos"
+                          ? plano.modalidade === "jornada-mistica"
+                            ? "Jornada Mística: todos os capítulos cadastrados"
+                            : "lida inteira, conferindo últimos 2 capítulos"
                           : bloco.minhaObra
                             ? "Minha Obra"
                             : `${bloco.capitulos.length} capítulo(s) informado(s)`}

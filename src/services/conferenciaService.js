@@ -107,7 +107,8 @@ function calcularExigencias({ capitulo, palavras = 0, regras = null }) {
   const exigeDistribuicao =
     ehNormal && !ehCurto && regras?.exigeDistribuicaoNormal !== false;
 
-  const exigeTempo = ehNormal && !ehCurto;
+  const exigeTempo =
+    ehNormal && !ehCurto && regras?.exigeTempoNormal !== false;
 
   return {
     ehNormal,
