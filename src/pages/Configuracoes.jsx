@@ -4,7 +4,9 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDocs
+  getDocs,
+  serverTimestamp,
+  setDoc
 } from "firebase/firestore";
 
 import { db } from "../firebase/config.js";
@@ -41,6 +43,44 @@ async function apagarObrasComCapitulos() {
     }
 
     await deleteDoc(doc(db, "obras", obraDoc.id));
+  }
+
+  return {
+    obras: obrasSnapshot.docs.length,
+    capitulos: totalCapitulos
+  };
+}
+
+async function resetarMetricasCapitulosTodasObras() {
+  const obrasSnapshot = await getDocs(collection(db, "obras"));
+  let totalCapitulos = 0;
+
+  for (const obraDoc of obrasSnapshot.docs) {
+    const capitulosSnapshot = await getDocs(
+      collection(db, "obras", obraDoc.id, "capitulos")
+    );
+
+    for (const capituloDoc of capitulosSnapshot.docs) {
+      await setDoc(
+        doc(db, "obras", obraDoc.id, "capitulos", capituloDoc.id),
+        {
+          palavras: 0,
+          paragrafos: 0,
+          comentariosTotais: 0,
+          distribuicaoComentarios: {
+            inicio: 0,
+            meio: 0,
+            fim: 0,
+            geral: 0
+          },
+          paragrafosDetalhados: [],
+          atualizadoEm: serverTimestamp()
+        },
+        { merge: true }
+      );
+
+      totalCapitulos += 1;
+    }
   }
 
   return {
@@ -149,6 +189,20 @@ export default function Configuracoes() {
     });
   }
 
+  async function resetarCapitulos() {
+    await confirmarDuasVezes({
+      tipo: "as métricas dos capítulos de todas as obras",
+      textoConfirmacao: "RESETAR CAPITULOS",
+      acao: async () => {
+        const resultado = await resetarMetricasCapitulosTodasObras();
+
+        setMensagem(
+          `${resultado.capitulos} capítulo(s) de ${resultado.obras} obra(s) resetado(s). Agora você pode usar Atualizar todos novamente.`
+        );
+      }
+    });
+  }
+
   return (
     <section className="page">
       <div className="page-title">
@@ -238,6 +292,17 @@ export default function Configuracoes() {
             {apagando === "as obras e capítulos"
               ? "Apagando..."
               : "Limpar obras"}
+          </button>
+
+          <button
+            type="button"
+            className="button-danger"
+            onClick={resetarCapitulos}
+            disabled={Boolean(apagando)}
+          >
+            {apagando === "as métricas dos capítulos de todas as obras"
+              ? "Resetando..."
+              : "Resetar capítulos"}
           </button>
         </div>
       </div>
