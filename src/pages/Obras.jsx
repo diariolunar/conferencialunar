@@ -24,6 +24,7 @@ import { normalizarTexto } from "../utils/normalizarTexto.js";
 export default function Obras() {
   const dialog = useDialog();
   const [obras, setObras] = useState([]);
+  const [statusCapitulosPorObra, setStatusCapitulosPorObra] = useState({});
   const [busca, setBusca] = useState("");
 
   const [modalAberto, setModalAberto] = useState(false);
@@ -70,6 +71,17 @@ export default function Obras() {
     try {
       const lista = await listarObras();
       setObras(lista);
+
+      try {
+        const relatorio = await diagnosticarObras(lista);
+        setStatusCapitulosPorObra(
+          Object.fromEntries(
+            relatorio.map((item) => [item.obra.id, item.capitulos || []])
+          )
+        );
+      } catch (erroDiagnostico) {
+        console.error(erroDiagnostico);
+      }
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao carregar obras.");
@@ -512,7 +524,21 @@ export default function Obras() {
                 </div>
 
                 <div className="work-list-info">
-                  <h3>{obra.titulo}</h3>
+                  <div className="work-list-title-row">
+                    <h3>{obra.titulo}</h3>
+
+                    {statusCapitulosPorObra[obra.id]?.some(
+                      (capitulo) => Number(capitulo.palavras || 0) <= 0
+                    ) && (
+                      <span
+                        className="chapter-data-warning-badge"
+                        title="Esta obra possui capítulos sem dados de palavras."
+                        aria-label="Esta obra possui capítulos sem dados de palavras"
+                      >
+                        !
+                      </span>
+                    )}
+                  </div>
 
                   <p>
                     {obra.autor || "Autor não informado"}

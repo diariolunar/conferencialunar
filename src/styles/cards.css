@@ -1737,6 +1737,12 @@
   min-width: 0;
 }
 
+.work-list-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .work-list-info h3 {
   margin: 0 0 8px;
   color: var(--color-gold);
@@ -1789,4 +1795,19 @@
     width: 76px;
     height: 104px;
   }
+}
+
+.chapter-data-warning-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border: 1px solid rgba(255, 190, 70, 0.8);
+  border-radius: 50%;
+  background: rgba(255, 190, 70, 0.16);
+  color: var(--color-gold);
+  font-size: 16px;
+  font-weight: 900;
+  cursor: help;
 }
