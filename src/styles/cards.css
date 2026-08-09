@@ -1728,6 +1728,13 @@
   background: rgba(255, 200, 87, 0.04);
 }
 
+.work-list-cover-media {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
 .work-list-cover img {
   width: 100%;
   height: 100%;

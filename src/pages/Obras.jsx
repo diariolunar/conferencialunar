@@ -272,6 +272,7 @@ export default function Obras() {
         isCancelled: () => cancelado
       });
 
+      await carregarObras();
       setMensagem(formatarResumoAtualizacao(resultado));
     } catch (erro) {
       console.error(erro);
@@ -516,11 +517,13 @@ export default function Obras() {
             {obrasFiltradas.map((obra) => (
               <div className="work-list-card" key={obra.id}>
                 <div className="work-list-cover">
-                  {obra.capa ? (
-                    <img src={obra.capa} alt={obra.titulo} />
-                  ) : (
-                    <div className="obra-cover-placeholder">Sem capa</div>
-                  )}
+                  <div className="work-list-cover-media">
+                    {obra.capa ? (
+                      <img src={obra.capa} alt={obra.titulo} />
+                    ) : (
+                      <div className="obra-cover-placeholder">Sem capa</div>
+                    )}
+                  </div>
 
                   {statusCapitulosPorObra[obra.id]?.some(
                     (capitulo) => Number(capitulo.palavras || 0) <= 0
