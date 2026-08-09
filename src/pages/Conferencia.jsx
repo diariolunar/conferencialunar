@@ -1667,17 +1667,70 @@ export default function Conferencia() {
                     </div>
 
                     <div className="chapter-results-list">
-                      {leitura.resultados.map((capitulo, index) => (
-                        <div className="chapter-result-item" key={`${capitulo.textoFicha}-${index}`}>
-                          <strong>{capitulo.titulo || capitulo.textoFicha}</strong>
-                          <span className={capitulo.resultado?.aprovado ? "status-approved" : "status-rejected"}>
-                            {capitulo.resultado?.aprovado ? "Aprovado" : "Reprovado"}
-                          </span>
-                          {!capitulo.resultado?.aprovado && capitulo.resultado?.motivos?.length > 0 && (
-                            <p>{capitulo.resultado.motivos.join(" ")}</p>
-                          )}
-                        </div>
-                      ))}
+                      {leitura.resultados.map((capitulo, index) => {
+                        const comentarios = capitulo.resultado?.comentarios || [];
+                        const estatisticas = capitulo.resultado?.estatisticas || {};
+                        const tempoReal = Number(estatisticas.tempoReal || 0);
+                        const tempoEstimado = Number(estatisticas.tempoEstimado || 0);
+
+                        return (
+                          <details
+                            className="chapter-result-dropdown"
+                            key={`${capitulo.textoFicha}-${index}`}
+                          >
+                            <summary className="chapter-result-item">
+                              <strong>{capitulo.titulo || capitulo.textoFicha}</strong>
+                              <span className={capitulo.resultado?.aprovado ? "status-approved" : "status-rejected"}>
+                                {capitulo.resultado?.aprovado ? "Aprovado" : "Reprovado"}
+                              </span>
+                            </summary>
+
+                            <div className="chapter-result-details">
+                              <div className="chapter-result-metrics">
+                                <div>
+                                  <span>Comentários</span>
+                                  <strong>{estatisticas.comentarios ?? comentarios.length}</strong>
+                                </div>
+                                <div>
+                                  <span>Tempo de leitura</span>
+                                  <strong>{tempoReal > 0 ? `${tempoReal} min` : "Não calculado"}</strong>
+                                </div>
+                                <div>
+                                  <span>Tempo estimado</span>
+                                  <strong>{tempoEstimado > 0 ? `${tempoEstimado} min` : "-"}</strong>
+                                </div>
+                              </div>
+
+                              {!capitulo.resultado?.aprovado && capitulo.resultado?.motivos?.length > 0 && (
+                                <div className="chapter-result-reasons">
+                                  {capitulo.resultado.motivos.map((motivo) => (
+                                    <p key={motivo}>{motivo}</p>
+                                  ))}
+                                </div>
+                              )}
+
+                              {comentarios.length > 0 ? (
+                                <div className="chapter-comments-list">
+                                  <h4>Comentários encontrados</h4>
+                                  {comentarios.map((comentario, comentarioIndex) => (
+                                    <div className="chapter-comment-card" key={comentario.id || comentarioIndex}>
+                                      <strong>{comentario.posicao || "Comentário"}</strong>
+                                      <p>{comentario.texto}</p>
+                                      {comentario.link && (
+                                        <a href={comentario.link} target="_blank" rel="noreferrer">
+                                          Abrir comentário
+                                        </a>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="chapter-comments-empty">Nenhum comentário encontrado para este capítulo.</p>
+                              )}
+                            </div>
+                          </details>
+                        );
+                      })}
                     </div>
                   </div>
                 );
