@@ -194,6 +194,55 @@ function interpretarListaLeituraLunar(texto = "") {
   return { leituras, erro: "" };
 }
 
+function converterRomanoParaNumero(texto = "") {
+  const valores = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+  const romano = String(texto || "").toUpperCase();
+  let total = 0;
+
+  for (let index = 0; index < romano.length; index += 1) {
+    const atual = valores[romano[index]] || 0;
+    const proximo = valores[romano[index + 1]] || 0;
+    total += atual < proximo ? -atual : atual;
+  }
+
+  return total || null;
+}
+
+function extrairNumeroDoNomeCapitulo(titulo = "") {
+  const textoNormalizado = normalizarTexto(titulo).toUpperCase();
+  const trecho = textoNormalizado.match(
+    /(?:CAPITULO|CAP|PARTE|EPISODIO|EP)\s*([IVXLCDM]+|\d+)/
+  );
+
+  if (!trecho?.[1]) return null;
+
+  if (/^\d+$/.test(trecho[1])) return Number(trecho[1]);
+
+  return converterRomanoParaNumero(trecho[1]);
+}
+
+function extrairNumeroInformadoCapitulo(texto = "") {
+  const normalizado = normalizarTexto(texto);
+  const numero = normalizado.match(/\b0*(\d+)\b/);
+
+  return numero?.[1] ? Number(numero[1]) : null;
+}
+
+function encontrarCapituloPorNomeLeituraLunar(capitulos = [], texto = "") {
+  const numeroInformado = extrairNumeroInformadoCapitulo(texto);
+
+  if (numeroInformado) {
+    return (
+      capitulos.find(
+        (capitulo) =>
+          extrairNumeroDoNomeCapitulo(capitulo.titulo) === numeroInformado
+      ) || null
+    );
+  }
+
+  return encontrarCapituloPorTexto(capitulos, texto);
+}
+
 function rotularConfiancaSugestao(pontos = 0) {
   if (pontos >= 80) return "Confiança alta";
   if (pontos >= 55) return "Confiança média";
@@ -853,7 +902,10 @@ export default function Conferencia() {
       const capitulosDaObra = await listarCapitulosDaObra(obra.id);
       const verificacoes = leiturasInformadas.map(({ user, capitulos }) => {
         const encontrados = capitulos.map((textoCapitulo) => {
-          const capitulo = encontrarCapituloPorTexto(capitulosDaObra, textoCapitulo);
+          const capitulo = encontrarCapituloPorNomeLeituraLunar(
+            capitulosDaObra,
+            textoCapitulo
+          );
 
           return capitulo
             ? montarLeitura({
