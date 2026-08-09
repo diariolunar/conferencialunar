@@ -521,6 +521,18 @@ export default function Obras() {
                   ) : (
                     <div className="obra-cover-placeholder">Sem capa</div>
                   )}
+
+                  {statusCapitulosPorObra[obra.id]?.some(
+                    (capitulo) => Number(capitulo.palavras || 0) <= 0
+                  ) && (
+                    <span
+                      className="chapter-data-warning-badge"
+                      title="Esta obra possui capítulos sem dados de palavras."
+                      aria-label="Esta obra possui capítulos sem dados de palavras"
+                    >
+                      !
+                    </span>
+                  )}
                 </div>
 
                 <div className="work-list-info">
