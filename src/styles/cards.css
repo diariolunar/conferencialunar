@@ -805,6 +805,73 @@
   color: var(--color-gold);
 }
 
+.obra-long-chapters-summary {
+  display: grid;
+  gap: 8px;
+  margin: -8px 0 22px;
+  padding: 14px 18px;
+  border: 1px solid rgba(255, 200, 87, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 200, 87, 0.035);
+}
+
+.obra-long-chapters-summary strong {
+  color: var(--color-gold);
+}
+
+.obra-long-chapters-summary span {
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.obra-collapsible-card,
+.obra-inner-collapsible {
+  overflow: hidden;
+}
+
+.obra-collapsible-card > h3,
+.obra-bulk-card > h3 {
+  display: none;
+}
+
+.obra-collapsible-card > summary,
+.obra-inner-collapsible > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--color-gold);
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.obra-collapsible-card > summary::-webkit-details-marker,
+.obra-inner-collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.obra-collapsible-card > summary::after,
+.obra-inner-collapsible > summary::after {
+  content: "+";
+  color: var(--color-gold);
+  font-size: 24px;
+}
+
+.obra-collapsible-card[open] > summary::after,
+.obra-inner-collapsible[open] > summary::after {
+  content: "−";
+}
+
+.obra-inner-collapsible {
+  margin-top: 0;
+}
+
+.obra-inner-collapsible > summary {
+  margin-bottom: 18px;
+}
+
 /* CONFERÊNCIA */
 
 .interpretation-preview,
