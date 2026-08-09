@@ -59,22 +59,22 @@ export function resumirStatusCapitulos(capitulos = []) {
 }
 
 export async function diagnosticarObras(obras = []) {
-  const relatorio = [];
+  const relatorio = await Promise.all(
+    obras.map(async (obra) => {
+      const capitulos = await listarCapitulosDaObra(obra.id);
+      const resumo = resumirStatusCapitulos(capitulos);
 
-  for (const obra of obras) {
-    const capitulos = await listarCapitulosDaObra(obra.id);
-    const resumo = resumirStatusCapitulos(capitulos);
-
-    relatorio.push({
-      obra,
-      capitulos,
-      resumo,
-      precisaAtencao:
-        resumo.total === 0 ||
-        resumo.precisamAtualizar > 0 ||
-        resumo.semLinkOuId > 0
-    });
-  }
+      return {
+        obra,
+        capitulos,
+        resumo,
+        precisaAtencao:
+          resumo.total === 0 ||
+          resumo.precisamAtualizar > 0 ||
+          resumo.semLinkOuId > 0
+      };
+    })
+  );
 
   return relatorio.sort((a, b) => {
     if (a.precisaAtencao !== b.precisaAtencao) {

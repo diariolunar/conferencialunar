@@ -72,16 +72,15 @@ export default function Obras() {
       const lista = await listarObras();
       setObras(lista);
 
-      try {
-        const relatorio = await diagnosticarObras(lista);
-        setStatusCapitulosPorObra(
-          Object.fromEntries(
-            relatorio.map((item) => [item.obra.id, item.capitulos || []])
-          )
-        );
-      } catch (erroDiagnostico) {
-        console.error(erroDiagnostico);
-      }
+      diagnosticarObras(lista)
+        .then((relatorio) => {
+          setStatusCapitulosPorObra(
+            Object.fromEntries(
+              relatorio.map((item) => [item.obra.id, item.capitulos || []])
+            )
+          );
+        })
+        .catch((erroDiagnostico) => console.error(erroDiagnostico));
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao carregar obras.");
