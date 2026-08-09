@@ -899,6 +899,33 @@
   gap: 18px;
 }
 
+.chapter-results-list {
+  display: grid;
+  gap: 10px;
+}
+
+.chapter-result-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 200, 87, 0.12);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.chapter-result-item strong {
+  color: var(--color-text);
+}
+
+.chapter-result-item p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.45;
+}
+
 .conference-item {
   border: 1px solid var(--color-border);
   border-radius: 18px;

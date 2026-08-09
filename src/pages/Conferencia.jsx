@@ -157,6 +157,43 @@ function separarCapitulosManuais(texto = "") {
     .filter(Boolean);
 }
 
+function interpretarListaLeituraLunar(texto = "") {
+  const linhas = String(texto || "")
+    .split(/\r?\n/)
+    .map((linha) => linha.trim())
+    .filter(Boolean);
+
+  if (linhas.length === 0) return { leituras: [], erro: "" };
+
+  if (linhas.length % 2 !== 0) {
+    return {
+      leituras: [],
+      erro: "A lista deve ter um user seguido dos capítulos lidos em cada bloco."
+    };
+  }
+
+  const leituras = [];
+
+  for (let index = 0; index < linhas.length; index += 2) {
+    const user = linhas[index].replace(/^@/, "").trim();
+    const capitulos = linhas[index + 1]
+      .split(/\s*(?:,|;|\||\/|&|\be\b)\s*/i)
+      .map((capitulo) => capitulo.trim())
+      .filter(Boolean);
+
+    if (!user || capitulos.length === 0) {
+      return {
+        leituras: [],
+        erro: "Cada user precisa ter ao menos um capítulo informado logo abaixo."
+      };
+    }
+
+    leituras.push({ user, capitulos });
+  }
+
+  return { leituras, erro: "" };
+}
+
 function rotularConfiancaSugestao(pontos = 0) {
   if (pontos >= 80) return "Confiança alta";
   if (pontos >= 55) return "Confiança média";
@@ -173,6 +210,9 @@ export default function Conferencia() {
   const [capitulosManuais, setCapitulosManuais] = useState("");
   const [obraJornada, setObraJornada] = useState("");
   const [userJornada, setUserJornada] = useState("");
+  const [obraLunarId, setObraLunarId] = useState("");
+  const [listaLeituraLunar, setListaLeituraLunar] = useState("");
+  const [resultadoLeituraLunar, setResultadoLeituraLunar] = useState([]);
 
   const [obras, setObras] = useState([]);
   const [subs, setSubs] = useState([]);
@@ -781,6 +821,128 @@ export default function Conferencia() {
     }
   }
 
+  async function verificarLeituraLunar(evento) {
+    evento.preventDefault();
+
+    const { leituras: leiturasInformadas, erro } = interpretarListaLeituraLunar(
+      listaLeituraLunar
+    );
+    const obra = obras.find((item) => item.id === obraLunarId);
+
+    if (!obra) {
+      setMensagem("Selecione a obra da Leitura Lunar.");
+      return;
+    }
+
+    if (erro) {
+      setMensagem(erro);
+      return;
+    }
+
+    if (leiturasInformadas.length === 0) {
+      setMensagem("Cole pelo menos um user e seus capítulos lidos.");
+      return;
+    }
+
+    setPreparando(true);
+    setMensagem("");
+    setResultadoLeituraLunar([]);
+    setProgressoVerificacao({ etapa: "", atual: 0, total: 0, titulo: "" });
+
+    try {
+      const capitulosDaObra = await listarCapitulosDaObra(obra.id);
+      const verificacoes = leiturasInformadas.map(({ user, capitulos }) => {
+        const encontrados = capitulos.map((textoCapitulo) => {
+          const capitulo = encontrarCapituloPorTexto(capitulosDaObra, textoCapitulo);
+
+          return capitulo
+            ? montarLeitura({
+                textoFicha: textoCapitulo,
+                obra,
+                capitulo,
+                obraInformada: obra.titulo
+              })
+            : {
+                ...montarLeitura({
+                  textoFicha: textoCapitulo,
+                  obra,
+                  capitulo: null,
+                  obraInformada: obra.titulo
+                }),
+                erroVerificacao: true,
+                erroMensagem: "Capítulo não encontrado no cadastro da obra.",
+                resultado: {
+                  aprovado: false,
+                  motivos: ["Capítulo não encontrado no cadastro da obra."]
+                }
+              };
+        });
+
+        return { user, capitulos, encontrados };
+      });
+
+      const total = verificacoes.reduce(
+        (soma, item) => soma + item.encontrados.filter((leitura) => leitura.encontrado).length,
+        0
+      );
+      let concluidos = 0;
+
+      setPreparando(false);
+      setVerificando(true);
+      setProgressoVerificacao({
+        etapa: "iniciando",
+        atual: 0,
+        total,
+        titulo: "Preparando verificação..."
+      });
+
+      const resultados = [];
+
+      for (const verificacao of verificacoes) {
+        const leiturasEncontradas = verificacao.encontrados.filter(
+          (leitura) => leitura.encontrado
+        );
+        const leiturasNaoEncontradas = verificacao.encontrados.filter(
+          (leitura) => !leitura.encontrado
+        );
+        const resultadoDosCapitulos = await verificarLeiturasPreparadas({
+          leituras: leiturasEncontradas,
+          userLeitor: verificacao.user,
+          regras,
+          onProgress: (progresso) => {
+            setProgressoVerificacao({
+              ...progresso,
+              atual: concluidos + progresso.atual,
+              total,
+              titulo: `${verificacao.user}: ${progresso.titulo}`
+            });
+          }
+        });
+
+        concluidos += leiturasEncontradas.length;
+        resultados.push({
+          user: verificacao.user,
+          capitulosInformados: verificacao.capitulos,
+          resultados: [...resultadoDosCapitulos, ...leiturasNaoEncontradas]
+        });
+      }
+
+      setResultadoLeituraLunar(resultados);
+      const aprovados = resultados.filter((item) =>
+        item.resultados.every((capitulo) => capitulo.resultado?.aprovado)
+      ).length;
+      setMensagem(
+        `Leitura Lunar concluída: ${aprovados} aprovado(s) e ${resultados.length - aprovados} reprovado(s).`
+      );
+    } catch (erroVerificacao) {
+      console.error(erroVerificacao);
+      setMensagem("Erro ao verificar a Leitura Lunar.");
+    } finally {
+      setPreparando(false);
+      setVerificando(false);
+    }
+  }
+
   async function alterarObraDaLeitura(index, obraId) {
     const obra = obras.find((item) => item.id === obraId) || null;
 
@@ -1232,6 +1394,13 @@ export default function Conferencia() {
           <div className="modal-tabs">
             <button
               type="button"
+              className={modoEntrada === "lunar" ? "active" : ""}
+              onClick={() => setModoEntrada("lunar")}
+            >
+              Leitura Lunar
+            </button>
+            <button
+              type="button"
               className={modoEntrada === "ficha" ? "active" : ""}
               onClick={() => setModoEntrada("ficha")}
             >
@@ -1255,7 +1424,7 @@ export default function Conferencia() {
             </button>
           </div>
 
-          {modoEntrada !== "jornada" && (
+          {modoEntrada !== "jornada" && modoEntrada !== "lunar" && (
             <label>
               Dia da leitura
               <select
@@ -1373,6 +1542,98 @@ export default function Conferencia() {
           )}
         </div>
       </details>
+
+      {modoEntrada === "lunar" && (
+        <details className="step-card" open>
+          <summary>
+            <span>Leitura Lunar</span>
+            <strong>Verificação em lista</strong>
+          </summary>
+
+          <form className="step-content form-grid manual-entry-form" onSubmit={verificarLeituraLunar}>
+            <label>
+              Obra
+              <select value={obraLunarId} onChange={(evento) => setObraLunarId(evento.target.value)}>
+                <option value="">Selecione a obra</option>
+                {obras.map((obra) => (
+                  <option key={obra.id} value={obra.id}>
+                    {obra.titulo}{obra.autor ? ` — ${obra.autor}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Lista de leituras
+              <textarea
+                rows="12"
+                value={listaLeituraLunar}
+                onChange={(evento) => setListaLeituraLunar(evento.target.value)}
+                placeholder={"Um user e os capítulos lidos logo abaixo.\n\nRKymae\n3 e 4\n\nJhony_1222\n3 e 4\n\nCharlieSpn149\n1 e 2"}
+              />
+            </label>
+
+            <div className="notice-card">
+              Use um bloco por leitor: primeira linha com o user e segunda linha
+              com os capítulos. Separe capítulos com “e”, vírgula ou ponto e vírgula.
+            </div>
+
+            <button type="submit" className="button-primary" disabled={preparando || verificando}>
+              {preparando || verificando ? "Verificando..." : "Conferir lista"}
+            </button>
+          </form>
+        </details>
+      )}
+
+      {resultadoLeituraLunar.length > 0 && (
+        <details className="step-card" open>
+          <summary>
+            <span>Resultado da Leitura Lunar</span>
+            <strong>{resultadoLeituraLunar.length} leitor(es)</strong>
+          </summary>
+
+          <div className="step-content">
+            <div className="conference-list">
+              {resultadoLeituraLunar.map((leitura) => {
+                const aprovado = leitura.resultados.every(
+                  (capitulo) => capitulo.resultado?.aprovado
+                );
+
+                return (
+                  <div
+                    className={`conference-item ${aprovado ? "result-approved" : "result-rejected"}`}
+                    key={leitura.user}
+                  >
+                    <div className="conference-item-header">
+                      <div>
+                        <span>User</span>
+                        <strong>@{leitura.user}</strong>
+                      </div>
+                      <span className={`status-pill ${aprovado ? "status-approved" : "status-rejected"}`}>
+                        {aprovado ? "Aprovado" : "Reprovado"}
+                      </span>
+                    </div>
+
+                    <div className="chapter-results-list">
+                      {leitura.resultados.map((capitulo, index) => (
+                        <div className="chapter-result-item" key={`${capitulo.textoFicha}-${index}`}>
+                          <strong>{capitulo.titulo || capitulo.textoFicha}</strong>
+                          <span className={capitulo.resultado?.aprovado ? "status-approved" : "status-rejected"}>
+                            {capitulo.resultado?.aprovado ? "Aprovado" : "Reprovado"}
+                          </span>
+                          {!capitulo.resultado?.aprovado && capitulo.resultado?.motivos?.length > 0 && (
+                            <p>{capitulo.resultado.motivos.join(" ")}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </details>
+      )}
 
       {plano && (
         <>
