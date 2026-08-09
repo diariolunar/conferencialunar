@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import {
@@ -25,6 +25,7 @@ export default function Obras() {
   const dialog = useDialog();
   const [obras, setObras] = useState([]);
   const [statusCapitulosPorObra, setStatusCapitulosPorObra] = useState({});
+  const diagnosticoAtualRef = useRef(0);
   const [busca, setBusca] = useState("");
 
   const [modalAberto, setModalAberto] = useState(false);
@@ -72,8 +73,13 @@ export default function Obras() {
       const lista = await listarObras();
       setObras(lista);
 
+      const diagnosticoId = diagnosticoAtualRef.current + 1;
+      diagnosticoAtualRef.current = diagnosticoId;
+
       diagnosticarObras(lista)
         .then((relatorio) => {
+          if (diagnosticoAtualRef.current !== diagnosticoId) return;
+
           setStatusCapitulosPorObra(
             Object.fromEntries(
               relatorio.map((item) => [item.obra.id, item.capitulos || []])
