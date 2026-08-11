@@ -178,7 +178,7 @@ function interpretarListaLeituraLunar(texto = "") {
     const user = linhas[index].replace(/^@/, "").trim();
     const capitulos = linhas[index + 1]
       .split(/\s*(?:,|;|\||\/|&|\be\b)\s*/i)
-      .map((capitulo) => capitulo.trim())
+      .map((capitulo) => capitulo.trim().replace(/^["“”']|["“”']$/g, ""))
       .filter(Boolean);
 
     if (!user || capitulos.length === 0) {
@@ -229,6 +229,15 @@ function extrairNumeroInformadoCapitulo(texto = "") {
 }
 
 function encontrarCapituloPorNomeLeituraLunar(capitulos = [], texto = "") {
+  const tituloInformado = normalizarTexto(texto).replace(/\s+/g, " ").trim();
+  const capituloPorTitulo = capitulos.find(
+    (capitulo) =>
+      normalizarTexto(capitulo.titulo).replace(/\s+/g, " ").trim() ===
+      tituloInformado
+  );
+
+  if (capituloPorTitulo) return capituloPorTitulo;
+
   const numeroInformado = extrairNumeroInformadoCapitulo(texto);
 
   if (numeroInformado) {
