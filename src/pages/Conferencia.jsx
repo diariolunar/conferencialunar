@@ -214,7 +214,10 @@ function extrairNumeroDoNomeCapitulo(titulo = "") {
     /(?:CAPITULO|CAP|PARTE|EPISODIO|EP)\s*([IVXLCDM]+|\d+)/
   );
 
-  if (!trecho?.[1]) return null;
+  if (!trecho?.[1]) {
+    const numeroNoInicio = textoNormalizado.match(/^0*(\d+)\b/);
+    return numeroNoInicio?.[1] ? Number(numeroNoInicio[1]) : null;
+  }
 
   if (/^\d+$/.test(trecho[1])) return Number(trecho[1]);
 
