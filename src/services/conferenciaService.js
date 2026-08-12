@@ -7,6 +7,14 @@ function normalizarUserLeitor(user = "") {
   return normalizarTexto(user).replace(/^@/, "").trim();
 }
 
+function canonicalizarUserLeitor(user = "") {
+  const userLimpo = String(user || "").replace(/^@/, "").trim();
+
+  return normalizarUserLeitor(userLimpo) === "jjgreyx"
+    ? "JJ_Greyx"
+    : userLimpo;
+}
+
 function userTemAprovacaoAutomatica(user = "") {
   return USERS_APROVACAO_AUTOMATICA.has(normalizarUserLeitor(user));
 }
@@ -461,7 +469,7 @@ export async function verificarLeiturasPreparadas({
     const resultado = await verificarCapituloReal({
       capitulo: leitura,
       regras,
-      userLeitor
+      userLeitor: canonicalizarUserLeitor(userLeitor)
     });
 
     resultados.push(resultado);
