@@ -1859,6 +1859,17 @@ export default function Conferencia() {
             </summary>
 
             <div className="step-content">
+              <div className="actions-row conference-top-actions">
+                <button
+                  type="button"
+                  className="button-primary"
+                  onClick={iniciarVerificacao}
+                  disabled={verificando || preparando}
+                >
+                  {verificando ? "Verificando..." : "Iniciar verificação"}
+                </button>
+              </div>
+
               <div className="conference-work-list">
                 {gruposDeLeitura.map((grupo, grupoIndex) => (
                   <div className="conference-work-card" key={grupo.chave}>
