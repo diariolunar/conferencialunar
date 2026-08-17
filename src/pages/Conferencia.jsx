@@ -270,6 +270,7 @@ export default function Conferencia() {
   const [userManual, setUserManual] = useState("");
   const [capitulosManuais, setCapitulosManuais] = useState("");
   const [obraJornada, setObraJornada] = useState("");
+  const [obraJornadaId, setObraJornadaId] = useState("");
   const [userJornada, setUserJornada] = useState("");
   const [obraLunarId, setObraLunarId] = useState("");
   const [listaLeituraLunar, setListaLeituraLunar] = useState("");
@@ -777,7 +778,7 @@ export default function Conferencia() {
   async function prepararConferenciaJornada(evento) {
     evento.preventDefault();
 
-    if (!obraJornada.trim()) {
+    if (!obraJornadaId) {
       setMensagem("Informe o nome da obra da Jornada Mística.");
       return;
     }
@@ -798,7 +799,7 @@ export default function Conferencia() {
     });
 
     try {
-      const obraEncontrada = encontrarObraPorTitulo(obraJornada);
+      const obraEncontrada = obras.find((obra) => obra.id === obraJornadaId);
 
       if (!obraEncontrada) {
         const sugestao = sugerirObraPorTitulo(obraJornada);
@@ -827,7 +828,7 @@ export default function Conferencia() {
           textoFicha: capitulo.titulo,
           obra: obraEncontrada,
           capitulo,
-          obraInformada: obraJornada.trim()
+          obraInformada: obraEncontrada.titulo
         })
       );
 
@@ -1575,12 +1576,23 @@ export default function Conferencia() {
               <div className="form-row-2">
                 <label>
                   Nome da obra
-                  <input
-                    type="text"
-                    value={obraJornada}
-                    onChange={(evento) => setObraJornada(evento.target.value)}
-                    placeholder="Digite o nome da obra"
-                  />
+                  <select
+                    value={obraJornadaId}
+                    onChange={(evento) => {
+                      const obraSelecionada = obras.find(
+                        (obra) => obra.id === evento.target.value
+                      );
+                      setObraJornadaId(evento.target.value);
+                      setObraJornada(obraSelecionada?.titulo || "");
+                    }}
+                  >
+                    <option value="">Selecione uma obra</option>
+                    {obras.map((obra) => (
+                      <option key={obra.id} value={obra.id}>
+                        {obra.titulo}{obra.autor ? ` — ${obra.autor}` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <label>
