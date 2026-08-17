@@ -925,6 +925,30 @@
   color: var(--color-gold-soft);
 }
 
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.settings-toggle-row strong {
+  color: var(--color-gold);
+  font-size: 18px;
+}
+
+.settings-toggle-row p {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+}
+
+@media (max-width: 700px) {
+  .settings-toggle-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .rejection-summary {
   margin-top: 20px;
   padding: 18px;

@@ -368,7 +368,10 @@ async function verificarCapituloReal({
     regras?.palavrasPorMinuto
   );
 
-  if (userTemAprovacaoAutomatica(userLeitor)) {
+  if (
+    regras?.aprovacaoAutomaticaUsuarios !== false &&
+    userTemAprovacaoAutomatica(userLeitor)
+  ) {
     return gerarResultadoAprovacaoAutomaticaUsuario({ capitulo, regras });
   }
 
