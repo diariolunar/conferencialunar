@@ -1,8 +1,11 @@
 import {
+  atualizarCapituloDaObra,
   atualizarDetalhesCapitulo,
   listarCapitulosDaObra
 } from "./capitulosService.js";
 import { buscarDetalhesCapituloWattpad } from "./capitulosDetalhesService.js";
+import { importarObraDoWattpad } from "./obrasService.js";
+import { compararObraComWattpad } from "../utils/compararObraWattpad.js";
 
 const DIAS_PARA_CONSIDERAR_DESATUALIZADO = 14;
 
@@ -17,9 +20,8 @@ function dataFirestoreParaMillis(valor) {
 
 export function avaliarStatusCapitulo(capitulo = {}, agora = Date.now()) {
   const semLinkOuId = !capitulo.link && !capitulo.wattpadId;
-  const semMetricas =
-    Number(capitulo.palavras || 0) <= 0 ||
-    Number(capitulo.paragrafos || 0) <= 0;
+  const ignorado = Boolean(capitulo.atualizacaoIgnorada);
+  const semMetricas = Number(capitulo.palavras || 0) <= 0;
 
   const atualizadoEm = dataFirestoreParaMillis(capitulo.atualizadoEm);
   const idadeMs = atualizadoEm ? agora - atualizadoEm : Infinity;
@@ -31,7 +33,8 @@ export function avaliarStatusCapitulo(capitulo = {}, agora = Date.now()) {
     semLinkOuId,
     semMetricas,
     antigo,
-    precisaAtualizar: !semLinkOuId && (semMetricas || antigo)
+    ignorado,
+    precisaAtualizar: !ignorado && !semLinkOuId && (semMetricas || antigo)
   };
 }
 
@@ -44,6 +47,7 @@ export function resumirStatusCapitulos(capitulos = []) {
       if (status.semLinkOuId) resumo.semLinkOuId += 1;
       if (status.semMetricas) resumo.semMetricas += 1;
       if (status.antigo) resumo.antigos += 1;
+      if (status.ignorado) resumo.ignorados += 1;
       if (status.precisaAtualizar) resumo.precisamAtualizar += 1;
 
       return resumo;
@@ -53,6 +57,7 @@ export function resumirStatusCapitulos(capitulos = []) {
       semLinkOuId: 0,
       semMetricas: 0,
       antigos: 0,
+      ignorados: 0,
       precisamAtualizar: 0
     }
   );
@@ -83,6 +88,8 @@ export async function diagnosticarObras(obras = []) {
 
     return (
       b.resumo.precisamAtualizar - a.resumo.precisamAtualizar ||
+      Number(Boolean(b.comparacaoWattpad?.temDiferencas)) -
+        Number(Boolean(a.comparacaoWattpad?.temDiferencas)) ||
       b.resumo.semLinkOuId - a.resumo.semLinkOuId ||
       String(a.obra.titulo || "").localeCompare(String(b.obra.titulo || ""))
     );
@@ -94,6 +101,7 @@ export async function atualizarCapitulosDaObraEmLote({
   capitulos: capitulosInformados = null,
   somenteDesatualizados = false,
   onProgress = null,
+  onZeroPalavras = null,
   isCancelled = null
 }) {
   const capitulos = capitulosInformados || (await listarCapitulosDaObra(obra.id));
@@ -107,6 +115,7 @@ export async function atualizarCapitulosDaObraEmLote({
     total: candidatos.length,
     atualizados: 0,
     falhas: 0,
+    ignorados: 0,
     semLinkOuId: 0,
     cancelado: false,
     erros: [],
@@ -147,31 +156,94 @@ export async function atualizarCapitulosDaObraEmLote({
     }
 
     try {
-      const detalhes = await buscarDetalhesCapituloWattpad({
-        capituloId: capitulo.wattpadId,
-        linkCapitulo: capitulo.link
-      });
+      let tentativa = 0;
 
-      await atualizarDetalhesCapitulo(obra.id, capitulo.id, detalhes);
+      while (true) {
+        tentativa += 1;
 
-      resultado.atualizados += 1;
-      resultado.capitulosAtualizados.push({
-        ...capitulo,
-        wattpadId: detalhes.capituloId || capitulo.wattpadId || "",
-        palavras: Number(detalhes.palavras || 0),
-        paragrafos: Number(detalhes.paragrafos || 0),
-        comentariosTotais: Number(
-          detalhes.comentariosTotaisCapitulo ||
-            detalhes.comentariosTotais ||
-            0
-        ),
-        distribuicaoComentarios: detalhes.distribuicaoComentarios || {
-          inicio: 0,
-          meio: 0,
-          fim: 0,
-          geral: 0
+        const detalhes = await buscarDetalhesCapituloWattpad({
+          capituloId: capitulo.wattpadId,
+          linkCapitulo: capitulo.link
+        });
+        const palavras = Number(detalhes.palavras || 0);
+
+        if (palavras === 0) {
+          const acao = await onZeroPalavras?.({
+            obra,
+            capitulo,
+            detalhes,
+            tentativa,
+            link:
+              capitulo.link ||
+              (capitulo.wattpadId
+                ? `https://www.wattpad.com/${capitulo.wattpadId}`
+                : "")
+          });
+
+          if (acao === "tentar_novamente") {
+            continue;
+          }
+
+          if (acao === "ignorar") {
+            const classificacao = await atualizarDetalhesCapitulo(
+              obra.id,
+              capitulo.id,
+              detalhes,
+              capitulo
+            );
+
+            await atualizarCapituloDaObra(obra.id, capitulo.id, {
+              atualizacaoIgnorada: true,
+              motivoIgnorarAtualizacao: "Capítulo retornou 0 palavras."
+            });
+
+            resultado.ignorados += 1;
+            resultado.capitulosAtualizados.push({
+              ...capitulo,
+              palavras: 0,
+              paragrafos: Number(detalhes.paragrafos || 0),
+              tipo: classificacao.tipo,
+              atualizacaoIgnorada: true,
+              motivoIgnorarAtualizacao: "Capítulo retornou 0 palavras."
+            });
+            break;
+          }
+
+          throw new Error(
+            "Capítulo retornou 0 palavras e nenhuma decisão foi informada."
+          );
         }
-      });
+
+        const classificacao = await atualizarDetalhesCapitulo(
+          obra.id,
+          capitulo.id,
+          detalhes,
+          capitulo
+        );
+
+        resultado.atualizados += 1;
+        resultado.capitulosAtualizados.push({
+          ...capitulo,
+          wattpadId: detalhes.capituloId || capitulo.wattpadId || "",
+          palavras,
+          tipo: classificacao.tipo,
+          paragrafos: Number(detalhes.paragrafos || 0),
+          comentariosTotais: Number(
+            detalhes.comentariosTotaisCapitulo ||
+              detalhes.comentariosTotais ||
+              0
+          ),
+          distribuicaoComentarios: detalhes.distribuicaoComentarios || {
+            inicio: 0,
+            meio: 0,
+            fim: 0,
+            geral: 0
+          },
+          atualizacaoIgnorada: false,
+          motivoIgnorarAtualizacao: ""
+        });
+        break;
+      }
     } catch (erro) {
       resultado.falhas += 1;
       resultado.erros.push({
@@ -186,7 +258,10 @@ export async function atualizarCapitulosDaObraEmLote({
     etapa: resultado.cancelado ? "cancelado" : "finalizado",
     atual: Math.min(
       resultado.total,
-      resultado.atualizados + resultado.falhas + resultado.semLinkOuId
+      resultado.atualizados +
+        resultado.falhas +
+        resultado.ignorados +
+        resultado.semLinkOuId
     ),
     total: resultado.total,
     titulo: "",
@@ -203,5 +278,5 @@ export function formatarResumoAtualizacao(resultado) {
     ? `"${resultado.obraTitulo}" cancelada:`
     : `"${resultado.obraTitulo}":`;
 
-  return `${prefixo} ${resultado.atualizados} capítulo(s) atualizado(s), ${resultado.falhas} falha(s), ${resultado.semLinkOuId} sem link ou ID.`;
+  return `${prefixo} ${resultado.atualizados} capítulo(s) atualizado(s), ${resultado.ignorados || 0} ignorado(s), ${resultado.falhas} falha(s), ${resultado.semLinkOuId} sem link ou ID.`;
 }

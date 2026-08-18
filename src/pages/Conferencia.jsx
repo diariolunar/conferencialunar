@@ -5,6 +5,7 @@ import FeedbackModal from "../components/FeedbackModal.jsx";
 import { DIAS_SEMANA } from "../utils/diasSemana.js";
 import { interpretarFicha } from "../utils/interpretarFicha.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
+import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
 import { gerarResumoConferencia } from "../utils/gerarResumoConferencia.js";
 import { gerarTextoReprovacaoConferencia } from "../utils/gerarTextoReprovacaoConferencia.js";
 
@@ -724,12 +725,12 @@ export default function Conferencia() {
         textoOriginal: [
           "Verificação manual",
           `Obra: ${obraManual.trim()}`,
-          `User: ${userManual.replace(/^@/, "").trim()}`,
+          `User: ${canonicalizarUsuario(userManual)}`,
           `Capítulos: ${capitulosInformados.join(", ")}`
         ].join("\n"),
         sub: "",
-        nomeLeitor: userManual.replace(/^@/, "").trim(),
-        userLeitor: userManual.replace(/^@/, "").trim(),
+        nomeLeitor: canonicalizarUsuario(userManual),
+        userLeitor: canonicalizarUsuario(userManual),
         adm: "",
         obraLida: obraManual.trim(),
         capitulosInformados,
@@ -822,7 +823,7 @@ export default function Conferencia() {
         return;
       }
 
-      const userTratado = userJornada.replace(/^@/, "").trim();
+      const userTratado = canonicalizarUsuario(userJornada);
       const leituras = capitulosOrdenados.map((capitulo) =>
         montarLeitura({
           textoFicha: capitulo.titulo,

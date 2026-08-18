@@ -1,4 +1,5 @@
 import { normalizarTexto } from "./normalizarTexto.js";
+import { canonicalizarUsuario } from "./normalizarUsuario.js";
 
 function desestilizar(texto = "") {
   return String(texto || "")
@@ -115,7 +116,7 @@ function capturarNome(linhas = []) {
 function capturarUser(linhas = [], textoOriginal = "") {
   const user = capturarCampo(linhas, ["user", "usuario", "usuário"]);
 
-  if (user) return user.replace(/^@/, "").trim();
+  if (user) return canonicalizarUsuario(user);
 
   const match = desestilizar(textoOriginal).match(/@([A-Za-z0-9_.-]+)/);
   return match?.[1] || "";

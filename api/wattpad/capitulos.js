@@ -116,10 +116,8 @@ function normalizarCapitulo(part, index) {
 async function fetchJson(url) {
   const resposta = await fetch(url, {
     headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-      Accept: "application/json, text/plain, */*",
-      "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8"
+      "User-Agent": "Mozilla/5.0",
+      Accept: "application/json"
     }
   });
 
@@ -150,7 +148,7 @@ async function fetchHtml(url) {
 
 async function tentarApiInterna(wattpadId) {
   const urls = [
-    `https://www.wattpad.com/api/v3/stories/${wattpadId}?fields=id,title,description,cover,url,parts(id,title,url,wordCount,commentCount,readCount,voteCount,createDate,modifyDate)`,
+    `https://www.wattpad.com/api/v3/stories/${wattpadId}?fields=id,title,description,cover,url,user(name,username),parts(id,title,url,wordCount,commentCount,readCount,voteCount,createDate,modifyDate)`,
     `https://www.wattpad.com/api/v3/stories/${wattpadId}`,
     `https://www.wattpad.com/apiv2/storytext?id=${wattpadId}`
   ];
@@ -167,19 +165,23 @@ async function tentarApiInterna(wattpadId) {
         [];
 
       if (dados.title || partes.length) {
+        const usuario = dados.user || dados.author || dados.story?.user || {};
+
         return {
           titulo: limparHtml(dados.title || dados.name || dados.story?.title || ""),
           capa: dados.cover || dados.coverUrl || dados.cover_url || dados.image || "",
           descricao: limparHtml(
             dados.description || dados.summary || dados.story?.description || ""
           ),
+          autor: limparHtml(usuario.name || usuario.fullname || ""),
+          userAutor: usuario.username || "",
           capitulos: Array.isArray(partes)
             ? partes.map((part, index) => normalizarCapitulo(part, index))
             : []
         };
       }
-    } catch {
-      // tenta próxima URL
+    } catch (erro) {
+      console.warn("Falha ao consultar endpoint do Wattpad:", erro.message);
     }
   }
 
@@ -353,6 +355,8 @@ export default async function handler(req, res) {
           titulo: dadosApi.titulo || `Obra ${wattpadId}`,
           capa: dadosApi.capa,
           descricao: dadosApi.descricao,
+          autor: dadosApi.autor,
+          userAutor: dadosApi.userAutor,
           link: url
         },
         capitulos,

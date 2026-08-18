@@ -17,6 +17,7 @@ CAPITULOS:
     "https://www.wattpad.com/1357686687-hp-1-o-conto-de-zahir-drarry-i-prologo"
   );
   assert.equal(importacao.capitulos[0].wattpadId, "1357686687");
+  assert.equal(importacao.capitulos[0].tipo, "Especial");
   assert.equal(
     importacao.capitulos[1].titulo,
     "II | O menino que sobreviveu"

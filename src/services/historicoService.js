@@ -14,6 +14,10 @@ import {
 
 import { db } from "../firebase/config.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
+import {
+  canonicalizarUsuario,
+  normalizarUsuario
+} from "../utils/normalizarUsuario.js";
 
 const HISTORICO_COLLECTION = "historicoConferencias";
 
@@ -33,7 +37,7 @@ function normalizarDia(dia = "") {
 }
 
 function normalizarUser(user = "") {
-  return normalizarTexto(user).replace(/^@/, "");
+  return normalizarUsuario(user);
 }
 
 function gerarChaveMembro(item = {}) {
@@ -48,7 +52,7 @@ function gerarChaveMembro(item = {}) {
 
 function formatarMembro(item = {}) {
   const nome = item.nomeLeitor || "Membro não informado";
-  const user = normalizarUser(item.userLeitor || "");
+  const user = canonicalizarUsuario(item.userLeitor || "");
 
   if (user) {
     return `${nome} • @${user}`;
@@ -58,14 +62,15 @@ function formatarMembro(item = {}) {
 }
 
 export async function salvarConferenciaNoHistorico(conferencia) {
-  const userNormalizado = normalizarUser(conferencia.userLeitor || "");
+  const userLeitor = canonicalizarUsuario(conferencia.userLeitor || "");
+  const userNormalizado = normalizarUser(userLeitor);
 
   const ref = await addDoc(collection(db, HISTORICO_COLLECTION), {
     sub: conferencia.sub || "",
     diaSemana: conferencia.diaSemana || "",
     diaSemanaNormalizado: normalizarDia(conferencia.diaSemana || ""),
     nomeLeitor: conferencia.nomeLeitor || "",
-    userLeitor: conferencia.userLeitor || "",
+    userLeitor,
     userLeitorNormalizado: userNormalizado,
     chaveMembro: gerarChaveMembro(conferencia),
     membroExibicao: formatarMembro(conferencia),
@@ -86,13 +91,15 @@ export async function salvarConferenciaNoHistorico(conferencia) {
 
 export async function atualizarConferenciaNoHistorico(conferenciaId, dados) {
   const ref = doc(db, HISTORICO_COLLECTION, conferenciaId);
-  const userNormalizado = normalizarUser(dados.userLeitor || "");
+  const userLeitor = canonicalizarUsuario(dados.userLeitor || "");
+  const userNormalizado = normalizarUser(userLeitor);
   const diaNormalizado = normalizarDia(dados.diaSemana || "");
 
   await setDoc(
     ref,
     {
       ...dados,
+      userLeitor,
       userLeitorNormalizado: userNormalizado,
       diaSemanaNormalizado: diaNormalizado,
       chaveMembro: gerarChaveMembro(dados),

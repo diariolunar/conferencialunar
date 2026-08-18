@@ -8,7 +8,6 @@ import {
 
 import {
   atualizarCapituloDaObra,
-  atualizarDetalhesCapitulo,
   excluirCapitulo,
   listarCapitulosDaObra,
   salvarCapituloDaObra,
@@ -20,9 +19,10 @@ import {
   formatarResumoAtualizacao
 } from "../services/atualizacaoCapitulosService.js";
 import { listarAutores } from "../services/autoresService.js";
-import { buscarDetalhesCapituloWattpad } from "../services/capitulosDetalhesService.js";
 import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
+import { decidirCapituloSemPalavras } from "../utils/decidirCapituloSemPalavras.js";
+import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
 
 const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
 
@@ -99,6 +99,10 @@ export default function ObraDetalhes() {
 
   const [mensagem, setMensagem] = useState("");
 
+  function tratarCapituloSemPalavras(contexto) {
+    return decidirCapituloSemPalavras({ dialog, ...contexto });
+  }
+
   async function carregarDados() {
     setCarregando(true);
     setMensagem("");
@@ -167,7 +171,7 @@ export default function ObraDetalhes() {
         titulo: tituloObra.trim(),
         autorId: autorSelecionadoId,
         autor: autor.trim(),
-        userAutor: userAutor.replace(/^@/, "").trim(),
+        userAutor: canonicalizarUsuario(userAutor),
         capa: capa.trim(),
         link: linkObra.trim()
       });
@@ -376,40 +380,22 @@ export default function ObraDetalhes() {
     setMensagem("");
 
     try {
-      const detalhes = await buscarDetalhesCapituloWattpad({
-        capituloId: capitulo.wattpadId,
-        linkCapitulo: capitulo.link
+      const resultado = await atualizarCapitulosDaObraEmLote({
+        obra,
+        capitulos: [capitulo],
+        onZeroPalavras: tratarCapituloSemPalavras
       });
+      const atualizado = resultado.capitulosAtualizados[0];
 
-      await atualizarDetalhesCapitulo(obraId, capitulo.id, detalhes);
+      if (atualizado) {
+        setCapitulos((listaAtual) =>
+          listaAtual.map((item) =>
+            item.id === capitulo.id ? atualizado : item
+          )
+        );
+      }
 
-      setCapitulos((listaAtual) =>
-        listaAtual.map((item) =>
-          item.id === capitulo.id
-            ? {
-                ...item,
-                wattpadId: detalhes.capituloId || item.wattpadId || "",
-                palavras: Number(detalhes.palavras || 0),
-                paragrafos: Number(detalhes.paragrafos || 0),
-                comentariosTotais: Number(
-                  detalhes.comentariosTotaisCapitulo ||
-                    detalhes.comentariosTotais ||
-                    0
-                ),
-                distribuicaoComentarios: detalhes.distribuicaoComentarios || {
-                  inicio: 0,
-                  meio: 0,
-                  fim: 0,
-                  geral: 0
-                }
-              }
-            : item
-        )
-      );
-
-      setMensagem(
-        `Detalhes atualizados: ${detalhes.palavras} palavras, ${detalhes.paragrafos} parágrafos.`
-      );
+      setMensagem(formatarResumoAtualizacao(resultado));
     } catch (erro) {
       console.error(erro);
       setMensagem(erro.message || "Erro ao atualizar detalhes do capítulo.");
@@ -448,6 +434,7 @@ export default function ObraDetalhes() {
             `Atualizando ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
           );
         },
+        onZeroPalavras: tratarCapituloSemPalavras,
         isCancelled: () => cancelado
       });
 

@@ -1,3 +1,6 @@
+import { classificarTipoCapitulo } from "./classificarTipoCapitulo.js";
+import { canonicalizarUsuario } from "./normalizarUsuario.js";
+
 export function interpretarImportacaoWattpad(texto = "") {
   const importacoes = interpretarImportacoesWattpad(texto);
 
@@ -49,7 +52,9 @@ export function interpretarImportacoesWattpad(texto = "") {
     }
 
     if (linhaLower.includes("user") && linhaLower.includes("autor")) {
-      atual.obra.userAutor = limparValor(linha.split(":").slice(1).join(":")).replace(/^@/, "");
+      atual.obra.userAutor = canonicalizarUsuario(
+        limparValor(linha.split(":").slice(1).join(":"))
+      );
       return;
     }
 
@@ -118,7 +123,10 @@ function interpretarLinhaCapitulo(linha = "", ordem = 1) {
     palavras,
     paragrafos,
     ordem,
-    tipo: detectarTipoCapitulo(tituloCapitulo)
+    tipo: classificarTipoCapitulo({
+      titulo: tituloCapitulo,
+      palavras
+    })
   };
 }
 
@@ -200,20 +208,6 @@ export function limparTituloCapitulo(titulo = "") {
   limpo = limpo.replace(/\s+(publicado|atualizado|updated|published).*$/i, "");
 
   return limparValor(limpo);
-}
-
-function detectarTipoCapitulo(titulo = "") {
-  const normalizado = titulo.toLowerCase();
-
-  if (normalizado.includes("poesia") || normalizado.includes("poema")) {
-    return "Poesia";
-  }
-
-  if (normalizado.includes("especial")) {
-    return "Especial";
-  }
-
-  return "Normal";
 }
 
 function extrairIdDoLink(link = "") {

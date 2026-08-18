@@ -1,3 +1,5 @@
+import { normalizarUsuario } from "../../src/utils/normalizarUsuario.js";
+
 const CACHE_TTL_MS = 1000 * 60 * 5;
 const RATE_LIMIT_MS = 450;
 const COMMENT_PAGE_LIMIT = 100;
@@ -59,11 +61,7 @@ function extrairIdCapitulo(linkOuId = "") {
 }
 
 function normalizarUser(user = "") {
-  return String(user || "")
-    .normalize("NFKC")
-    .replace(/^@/, "")
-    .trim()
-    .toLowerCase();
+  return normalizarUsuario(user);
 }
 
 function limparHtml(texto = "") {

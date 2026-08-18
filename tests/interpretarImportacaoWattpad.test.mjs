@@ -33,6 +33,7 @@ CAPÍTULOS:
   assert.equal(importacoes[1].obra.titulo, "Obra B");
   assert.equal(importacoes[1].obra.userAutor, "autorb");
   assert.equal(importacoes[1].totalCapitulos, 2);
+  assert.equal(importacoes[1].capitulos[0].tipo, "Especial");
   assert.equal(importacoes[1].capitulos[1].wattpadId, "303030");
 });
 

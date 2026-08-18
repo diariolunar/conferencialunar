@@ -14,8 +14,33 @@ import {
 
 import { db } from "../firebase/config.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
+import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
 
 const OBRAS_COLLECTION = "obras";
+
+function prepararDadosObra(obra = {}, obraExistente = {}) {
+  const userAutor = canonicalizarUsuario(
+    obra.userAutor || obraExistente.userAutor || ""
+  );
+
+  return {
+    wattpadId: obra.wattpadId || obraExistente.wattpadId || "",
+    titulo: obra.titulo || obraExistente.titulo || "",
+    tituloNormalizado: normalizarTexto(
+      obra.titulo || obraExistente.titulo || ""
+    ),
+    autor: obra.autor || obraExistente.autor || "",
+    autorNormalizado: normalizarTexto(
+      obra.autor || obraExistente.autor || ""
+    ),
+    userAutor,
+    userAutorNormalizado: normalizarTexto(userAutor),
+    descricao: obra.descricao || obraExistente.descricao || "",
+    capa: obra.capa || obraExistente.capa || "",
+    link: obra.link || obraExistente.link || "",
+    atualizadoEm: serverTimestamp()
+  };
+}
 
 export async function listarObras() {
   const q = query(collection(db, OBRAS_COLLECTION), orderBy("titulo", "asc"));
@@ -81,32 +106,21 @@ export async function buscarObraPorWattpadId(wattpadId = "") {
   };
 }
 
-export async function salvarObra(obra) {
+export async function buscarObraExistente(obra = {}) {
   const obraPorWattpadId = obra.wattpadId
     ? await buscarObraPorWattpadId(obra.wattpadId)
     : null;
 
-  const obraPorTitulo = !obraPorWattpadId
-    ? await buscarObraPorTitulo(obra.titulo || "")
-    : null;
+  if (obraPorWattpadId) {
+    return obraPorWattpadId;
+  }
 
-  const obraExistente = obraPorWattpadId || obraPorTitulo;
+  return buscarObraPorTitulo(obra.titulo || "");
+}
 
-  const dados = {
-    wattpadId: obra.wattpadId || obraExistente?.wattpadId || "",
-    titulo: obra.titulo || obraExistente?.titulo || "",
-    tituloNormalizado: normalizarTexto(obra.titulo || obraExistente?.titulo || ""),
-    autor: obra.autor || obraExistente?.autor || "",
-    autorNormalizado: normalizarTexto(obra.autor || obraExistente?.autor || ""),
-    userAutor: obra.userAutor || obraExistente?.userAutor || "",
-    userAutorNormalizado: normalizarTexto(
-      obra.userAutor || obraExistente?.userAutor || ""
-    ),
-    descricao: obra.descricao || obraExistente?.descricao || "",
-    capa: obra.capa || obraExistente?.capa || "",
-    link: obra.link || obraExistente?.link || "",
-    atualizadoEm: serverTimestamp()
-  };
+export async function salvarObra(obra) {
+  const obraExistente = await buscarObraExistente(obra);
+  const dados = prepararDadosObra(obra, obraExistente || {});
 
   if (obraExistente?.id) {
     const ref = doc(db, OBRAS_COLLECTION, obraExistente.id);
@@ -141,7 +155,8 @@ export async function atualizarObra(obraId, dados) {
   }
 
   if (dados.userAutor !== undefined) {
-    dadosLimpos.userAutorNormalizado = normalizarTexto(dados.userAutor || "");
+    dadosLimpos.userAutor = canonicalizarUsuario(dados.userAutor);
+    dadosLimpos.userAutorNormalizado = normalizarTexto(dadosLimpos.userAutor);
   }
 
   Object.keys(dadosLimpos).forEach((chave) => {
@@ -164,6 +179,19 @@ export async function excluirObra(obraId) {
 
   const ref = doc(db, OBRAS_COLLECTION, obraId);
   await deleteDoc(ref);
+}
+
+export async function substituirObra(obraId, obra) {
+  await excluirObra(obraId);
+
+  const ref = doc(db, OBRAS_COLLECTION, obraId);
+
+  await setDoc(ref, {
+    ...prepararDadosObra(obra),
+    criadoEm: serverTimestamp()
+  });
+
+  return obraId;
 }
 
 export async function importarObraDoWattpad(link = "") {

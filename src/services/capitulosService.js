@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 
 import { db } from "../firebase/config.js";
+import { classificarTipoCapitulo } from "../utils/classificarTipoCapitulo.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 
 const OBRAS_COLLECTION = "obras";
@@ -238,13 +239,14 @@ function gerarIdCapitulo(capitulo, index = 0) {
 
 function limparDadosCapitulo(capitulo = {}, index = 0) {
   const titulo = capitulo.titulo || `Capítulo ${index + 1}`;
+  const palavras = Number(capitulo.palavras || 0);
 
   return {
     wattpadId: capitulo.wattpadId || "",
     titulo,
     tituloNormalizado: normalizarTexto(titulo),
     link: capitulo.link || "",
-    palavras: Number(capitulo.palavras || 0),
+    palavras,
     paragrafos: Number(capitulo.paragrafos || 0),
     comentariosTotais: Number(capitulo.comentariosTotais || 0),
     distribuicaoComentarios: capitulo.distribuicaoComentarios || {
@@ -254,7 +256,11 @@ function limparDadosCapitulo(capitulo = {}, index = 0) {
       geral: 0
     },
     ordem: Number(capitulo.ordem || index + 1),
-    tipo: capitulo.tipo || "Normal",
+    tipo: classificarTipoCapitulo({
+      titulo,
+      palavras,
+      tipoAtual: capitulo.tipo
+    }),
     atualizadoEm: serverTimestamp()
   };
 }
@@ -392,10 +398,22 @@ export async function atualizarCapituloDaObra(obraId, capituloId, dados) {
   await setDoc(ref, dadosLimpos, { merge: true });
 }
 
-export async function atualizarDetalhesCapitulo(obraId, capituloId, detalhes) {
+export async function atualizarDetalhesCapitulo(
+  obraId,
+  capituloId,
+  detalhes,
+  capituloAtual = {}
+) {
+  const palavras = Number(detalhes.palavras || 0);
+  const tipo = classificarTipoCapitulo({
+    titulo: capituloAtual.titulo || detalhes.titulo || "",
+    palavras,
+    tipoAtual: capituloAtual.tipo || ""
+  });
+
   await atualizarCapituloDaObra(obraId, capituloId, {
     wattpadId: detalhes.capituloId || "",
-    palavras: Number(detalhes.palavras || 0),
+    palavras,
     paragrafos: Number(detalhes.paragrafos || 0),
     comentariosTotais: Number(
       detalhes.comentariosTotaisCapitulo ||
@@ -408,8 +426,13 @@ export async function atualizarDetalhesCapitulo(obraId, capituloId, detalhes) {
       fim: 0,
       geral: 0
     },
-    paragrafosDetalhados: detalhes.paragrafosDetalhados || []
+    paragrafosDetalhados: detalhes.paragrafosDetalhados || [],
+    tipo,
+    atualizacaoIgnorada: false,
+    motivoIgnorarAtualizacao: ""
   });
+
+  return { tipo };
 }
 
 export async function listarCapitulosDaObra(obraId) {

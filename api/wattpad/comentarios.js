@@ -1,3 +1,5 @@
+import { normalizarUsuario } from "../../src/utils/normalizarUsuario.js";
+
 function extrairIdCapitulo(linkCapitulo = "") {
   const texto = String(linkCapitulo || "").trim();
 
@@ -28,10 +30,7 @@ function limparHtml(texto = "") {
 }
 
 function normalizarUser(user = "") {
-  return String(user || "")
-    .replace(/^@/, "")
-    .trim()
-    .toLowerCase();
+  return normalizarUsuario(user);
 }
 
 function detectarPosicao(index, total) {
