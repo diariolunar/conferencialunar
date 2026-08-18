@@ -38,6 +38,7 @@ export default function Obras() {
   const [importando, setImportando] = useState(false);
   const [atualizandoObraId, setAtualizandoObraId] = useState("");
   const [atualizandoTodas, setAtualizandoTodas] = useState(false);
+  const [sincronizandoTodas, setSincronizandoTodas] = useState(false);
   const [cancelarAtualizacao, setCancelarAtualizacao] = useState(null);
   const [diagnosticando, setDiagnosticando] = useState(false);
   const [relatorioObras, setRelatorioObras] = useState([]);
@@ -473,11 +474,44 @@ export default function Obras() {
     }
   }
 
-  async function sincronizarObraDoRelatorio(item) {
+  async function executarSincronizacao(item, onProgress = null) {
     const comparacao = item.comparacaoWattpad;
     const dadosWattpad = comparacao?.dadosWattpad;
 
     if (!dadosWattpad?.obra) {
+      throw new Error("Não há dados do Wattpad disponíveis para sincronizar.");
+    }
+
+    const obraWattpad = dadosWattpad.obra;
+    const obraSincronizada = {
+      ...item.obra,
+      ...obraWattpad,
+      autor: obraWattpad.autor || item.obra.autor || "",
+      userAutor: obraWattpad.userAutor || item.obra.userAutor || "",
+      descricao: obraWattpad.descricao || item.obra.descricao || "",
+      capa: obraWattpad.capa || item.obra.capa || ""
+    };
+
+    await substituirObra(item.obra.id, obraSincronizada);
+    await salvarCapitulosDaObra(item.obra.id, dadosWattpad.capitulos || []);
+
+    const resultado = await atualizarCapitulosDaObraEmLote({
+      obra: { ...obraSincronizada, id: item.obra.id },
+      onProgress,
+      onZeroPalavras: tratarCapituloSemPalavras
+    });
+
+    return {
+      obraSincronizada,
+      resultado,
+      totalCapitulos: dadosWattpad.capitulos?.length || 0
+    };
+  }
+
+  async function sincronizarObraDoRelatorio(item) {
+    const comparacao = item.comparacaoWattpad;
+
+    if (!comparacao?.dadosWattpad?.obra) {
       setMensagem("Não há dados do Wattpad disponíveis para sincronizar.");
       return;
     }
@@ -499,39 +533,20 @@ export default function Obras() {
     setMensagem(`Sincronizando ${item.obra.titulo}...`);
 
     try {
-      const obraWattpad = dadosWattpad.obra;
-      const obraSincronizada = {
-        ...item.obra,
-        ...obraWattpad,
-        autor: obraWattpad.autor || item.obra.autor || "",
-        userAutor: obraWattpad.userAutor || item.obra.userAutor || "",
-        descricao: obraWattpad.descricao || item.obra.descricao || "",
-        capa: obraWattpad.capa || item.obra.capa || ""
-      };
-
-      await substituirObra(item.obra.id, obraSincronizada);
-      await salvarCapitulosDaObra(
-        item.obra.id,
-        dadosWattpad.capitulos || []
-      );
-
-      const resultado = await atualizarCapitulosDaObraEmLote({
-        obra: { ...obraSincronizada, id: item.obra.id },
-        onProgress: (progresso) => {
+      const { obraSincronizada, resultado, totalCapitulos } =
+        await executarSincronizacao(item, (progresso) => {
           if (progresso.etapa === "finalizado") return;
           setMensagem(
             `Sincronizando capítulo ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
           );
-        },
-        onZeroPalavras: tratarCapituloSemPalavras
-      });
+        });
 
       await carregarObras();
       setRelatorioObras((atual) =>
         atual.filter((relatorio) => relatorio.obra.id !== item.obra.id)
       );
       setMensagem(
-        `“${obraSincronizada.titulo}” sincronizada: ${dadosWattpad.capitulos?.length || 0} capítulo(s) cadastrado(s), ${resultado.atualizados} atualizado(s), ${resultado.ignorados} ignorado(s) e ${resultado.falhas} falha(s).`
+        `“${obraSincronizada.titulo}” sincronizada: ${totalCapitulos} capítulo(s) cadastrado(s), ${resultado.atualizados} atualizado(s), ${resultado.ignorados} ignorado(s) e ${resultado.falhas} falha(s).`
       );
     } catch (erro) {
       console.error(erro);
@@ -539,6 +554,86 @@ export default function Obras() {
     } finally {
       setAtualizandoObraId("");
     }
+  }
+
+  async function sincronizarTodasObrasDoRelatorio() {
+    const fila = relatorioObras.filter(
+      (item) =>
+        item.comparacaoWattpad?.temDiferencas &&
+        !item.comparacaoWattpad?.comparacaoIncompleta &&
+        item.comparacaoWattpad?.dadosWattpad?.obra
+    );
+
+    if (!fila.length) {
+      setMensagem("Nenhuma obra está pronta para sincronização.");
+      return;
+    }
+
+    const confirmar = await dialog.confirm({
+      title: "Sincronizar todas",
+      message:
+        `${fila.length} obra(s) serão colocadas em fila e substituídas, uma por vez, pelas versões atuais do Wattpad. ` +
+        "Deseja continuar?",
+      confirmLabel: `Sincronizar ${fila.length} obra(s)`,
+      variant: "danger"
+    });
+
+    if (!confirmar) return;
+
+    let cancelado = false;
+    const idsSincronizados = new Set();
+    let concluidas = 0;
+    let falhas = 0;
+    let capitulosAtualizados = 0;
+    let capitulosIgnorados = 0;
+
+    setSincronizandoTodas(true);
+    setAtualizandoObraId("__sincronizacao_todas__");
+    setCancelarAtualizacao(() => () => {
+      cancelado = true;
+      setMensagem("Cancelando após concluir a obra atual...");
+    });
+
+    for (let indice = 0; indice < fila.length; indice += 1) {
+      if (cancelado) break;
+
+      const item = fila[indice];
+      setMensagem(
+        `Sincronizando obra ${indice + 1}/${fila.length}: ${item.obra.titulo}`
+      );
+
+      try {
+        const { resultado } = await executarSincronizacao(
+          item,
+          (progresso) => {
+            if (progresso.etapa === "finalizado") return;
+            setMensagem(
+              `Obra ${indice + 1}/${fila.length} • capítulo ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
+            );
+          }
+        );
+
+        idsSincronizados.add(item.obra.id);
+        concluidas += 1;
+        capitulosAtualizados += resultado.atualizados;
+        capitulosIgnorados += resultado.ignorados;
+        falhas += resultado.falhas;
+      } catch (erro) {
+        console.error(erro);
+        falhas += 1;
+      }
+    }
+
+    await carregarObras();
+    setRelatorioObras((atual) =>
+      atual.filter((item) => !idsSincronizados.has(item.obra.id))
+    );
+    setMensagem(
+      `${cancelado ? "Sincronização cancelada." : "Fila concluída."} ${concluidas} obra(s) sincronizada(s), ${capitulosAtualizados} capítulo(s) atualizado(s), ${capitulosIgnorados} ignorado(s) e ${falhas} falha(s).`
+    );
+    setSincronizandoTodas(false);
+    setAtualizandoObraId("");
+    setCancelarAtualizacao(null);
   }
 
   const importacoesPreview = previewImportacao
@@ -553,6 +648,12 @@ export default function Obras() {
         ]
     : [];
   const importacaoUnica = importacoesPreview.length === 1;
+  const obrasSincronizaveis = relatorioObras.filter(
+    (item) =>
+      item.comparacaoWattpad?.temDiferencas &&
+      !item.comparacaoWattpad?.comparacaoIncompleta &&
+      item.comparacaoWattpad?.dadosWattpad?.obra
+  );
 
   return (
     <section className="page">
@@ -573,6 +674,7 @@ export default function Obras() {
           importando ||
           Boolean(atualizandoObraId) ||
           atualizandoTodas ||
+          sincronizandoTodas ||
           diagnosticando
         }
         onCancel={cancelarAtualizacao}
@@ -606,6 +708,7 @@ export default function Obras() {
             onClick={atualizarTodosCapitulosDeTodasObras}
             disabled={
               atualizandoTodas ||
+              sincronizandoTodas ||
               Boolean(atualizandoObraId) ||
               diagnosticando ||
               obras.length === 0
@@ -620,6 +723,7 @@ export default function Obras() {
             onClick={carregarRelatorioObras}
             disabled={
               atualizandoTodas ||
+              sincronizandoTodas ||
               Boolean(atualizandoObraId) ||
               diagnosticando ||
               obras.length === 0
@@ -631,6 +735,25 @@ export default function Obras() {
 
         {relatorioObras.length > 0 && (
           <div className="works-report">
+            {obrasSincronizaveis.length > 0 && (
+              <div className="actions-row report-actions">
+                <button
+                  type="button"
+                  className="button-primary"
+                  onClick={sincronizarTodasObrasDoRelatorio}
+                  disabled={
+                    sincronizandoTodas ||
+                    atualizandoTodas ||
+                    Boolean(atualizandoObraId)
+                  }
+                >
+                  {sincronizandoTodas
+                    ? "Sincronizando fila..."
+                    : `Sincronizar todas (${obrasSincronizaveis.length})`}
+                </button>
+              </div>
+            )}
+
             {relatorioObras.slice(0, 8).map((item) => (
               <div
                 className={`works-report-item ${
@@ -679,7 +802,11 @@ export default function Obras() {
                     type="button"
                     className="button-primary"
                     onClick={() => sincronizarObraDoRelatorio(item)}
-                    disabled={atualizandoTodas || Boolean(atualizandoObraId)}
+                    disabled={
+                      sincronizandoTodas ||
+                      atualizandoTodas ||
+                      Boolean(atualizandoObraId)
+                    }
                   >
                     {atualizandoObraId === item.obra.id
                       ? "Sincronizando..."
@@ -690,7 +817,11 @@ export default function Obras() {
                     type="button"
                     className="button-secondary"
                     onClick={() => atualizarTodosCapitulosDaObra(item.obra)}
-                    disabled={atualizandoTodas || Boolean(atualizandoObraId)}
+                    disabled={
+                      sincronizandoTodas ||
+                      atualizandoTodas ||
+                      Boolean(atualizandoObraId)
+                    }
                   >
                     Atualizar
                   </button>
@@ -730,7 +861,11 @@ export default function Obras() {
                     type="button"
                     className="button-secondary"
                     onClick={() => atualizarTodosCapitulosDaObra(obra)}
-                    disabled={atualizandoTodas || Boolean(atualizandoObraId)}
+                    disabled={
+                      sincronizandoTodas ||
+                      atualizandoTodas ||
+                      Boolean(atualizandoObraId)
+                    }
                   >
                     {atualizandoObraId === obra.id
                       ? "Atualizando..."
