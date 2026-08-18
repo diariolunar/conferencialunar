@@ -30,6 +30,22 @@ test("capítulo com 0 palavras continua pendente quando não foi ignorado", () =
   assert.equal(status.precisaAtualizar, true);
 });
 
+test("capítulo com palavras e 0 parágrafos não gera falso erro", () => {
+  const status = avaliarStatusCapitulo(
+    {
+      link: "https://www.wattpad.com/123456",
+      palavras: 1200,
+      paragrafos: 0,
+      atualizadoEm: new Date("2026-08-18T12:00:00Z")
+    },
+    new Date("2026-08-18T13:00:00Z").getTime()
+  );
+
+  assert.equal(status.semMetricas, false);
+  assert.equal(status.antigo, false);
+  assert.equal(status.precisaAtualizar, false);
+});
+
 test("resumo contabiliza capítulos ignorados sem marcá-los para atualização", () => {
   const resumo = resumirStatusCapitulos([
     {

@@ -19,9 +19,7 @@ function dataFirestoreParaMillis(valor) {
 export function avaliarStatusCapitulo(capitulo = {}, agora = Date.now()) {
   const semLinkOuId = !capitulo.link && !capitulo.wattpadId;
   const ignorado = Boolean(capitulo.atualizacaoIgnorada);
-  const semMetricas =
-    Number(capitulo.palavras || 0) <= 0 ||
-    Number(capitulo.paragrafos || 0) <= 0;
+  const semMetricas = Number(capitulo.palavras || 0) <= 0;
 
   const atualizadoEm = dataFirestoreParaMillis(capitulo.atualizadoEm);
   const idadeMs = atualizadoEm ? agora - atualizadoEm : Infinity;

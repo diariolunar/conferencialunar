@@ -345,11 +345,11 @@ export default function Obras() {
     }
   }
 
-  async function atualizarTodasObrasComCapitulosZerados() {
+  async function atualizarTodosCapitulosDeTodasObras() {
     const confirmar = await dialog.confirm({
       title: "Atualizar todas",
       message:
-        "Deseja atualizar os capítulos zerados de todas as obras? Obras sem capítulos zerados serão puladas.",
+        "Deseja atualizar todos os capítulos de todas as obras? O processo pode demorar. Capítulos ignorados ou sem link/ID serão pulados.",
       confirmLabel: "Atualizar todas",
       variant: "default"
     });
@@ -364,30 +364,29 @@ export default function Obras() {
       cancelado = true;
       setMensagem("Cancelando após o capítulo atual...");
     });
-    setMensagem("Procurando obras com capítulos zerados...");
+    setMensagem("Preparando todos os capítulos para atualização...");
 
     try {
       const relatorio = await diagnosticarObras(obras);
-      const obrasComZerados = relatorio
+      const obrasParaAtualizar = relatorio
         .map((item) => ({
           ...item,
-          capitulosZerados: item.capitulos.filter((capitulo) => {
-            const palavras = Number(capitulo.palavras || 0);
-            const paragrafos = Number(capitulo.paragrafos || 0);
+          capitulosParaAtualizar: item.capitulos.filter((capitulo) => {
             const temLinkOuId = Boolean(capitulo.link || capitulo.wattpadId);
 
-            return (
-              !capitulo.atualizacaoIgnorada &&
-              temLinkOuId &&
-              (palavras <= 0 || paragrafos <= 0)
-            );
+            return !capitulo.atualizacaoIgnorada && temLinkOuId;
           })
         }))
-        .filter((item) => item.capitulosZerados.length > 0);
+        .filter((item) => item.capitulosParaAtualizar.length > 0);
 
-      if (obrasComZerados.length === 0) {
-        setRelatorioObras(relatorio);
-        setMensagem("Nenhuma obra com capítulos zerados para atualizar.");
+      if (obrasParaAtualizar.length === 0) {
+        const pendentes = relatorio.filter((item) => item.precisaAtencao);
+        setRelatorioObras(pendentes);
+        setMensagem(
+          pendentes.length
+            ? `Nenhum capítulo elegível para atualizar. ${pendentes.length} obra(s) ainda precisam de atenção.`
+            : "Nenhum capítulo elegível para atualizar. Todas as obras estão em ordem."
+        );
         return;
       }
 
@@ -396,23 +395,23 @@ export default function Obras() {
       let capitulosIgnorados = 0;
       let falhas = 0;
 
-      for (let indice = 0; indice < obrasComZerados.length; indice += 1) {
+      for (let indice = 0; indice < obrasParaAtualizar.length; indice += 1) {
         if (cancelado) break;
 
-        const item = obrasComZerados[indice];
+        const item = obrasParaAtualizar[indice];
 
         setMensagem(
-          `Atualizando obra ${indice + 1}/${obrasComZerados.length}: ${item.obra.titulo}`
+          `Atualizando obra ${indice + 1}/${obrasParaAtualizar.length}: ${item.obra.titulo}`
         );
 
         const resultado = await atualizarCapitulosDaObraEmLote({
           obra: item.obra,
-          capitulos: item.capitulosZerados,
+          capitulos: item.capitulosParaAtualizar,
           onProgress: (progresso) => {
             if (progresso.etapa === "finalizado") return;
 
             setMensagem(
-              `Obra ${indice + 1}/${obrasComZerados.length} - capítulo ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
+              `Obra ${indice + 1}/${obrasParaAtualizar.length} - capítulo ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
             );
           },
           onZeroPalavras: tratarCapituloSemPalavras,
@@ -426,10 +425,14 @@ export default function Obras() {
       }
 
       await carregarObras();
-      setRelatorioObras(await diagnosticarObras(obras));
+      const relatorioFinal = await diagnosticarObras(obras);
+      const obrasAindaPendentes = relatorioFinal.filter(
+        (item) => item.precisaAtencao
+      );
+      setRelatorioObras(obrasAindaPendentes);
 
       setMensagem(
-        `${cancelado ? "Atualização cancelada." : "Atualização concluída."} ${obrasAtualizadas} obra(s) atualizada(s), ${capitulosAtualizados} capítulo(s) corrigido(s), ${capitulosIgnorados} ignorado(s), ${falhas} falha(s).`
+        `${cancelado ? "Atualização cancelada." : "Atualização concluída."} ${obrasAtualizadas} obra(s) atualizada(s), ${capitulosAtualizados} capítulo(s) processado(s), ${capitulosIgnorados} ignorado(s), ${falhas} falha(s). ${obrasAindaPendentes.length} obra(s) ainda precisam de atenção.`
       );
     } catch (erro) {
       console.error(erro);
@@ -448,9 +451,12 @@ export default function Obras() {
     try {
       const relatorio = await diagnosticarObras(obras);
 
-      setRelatorioObras(relatorio);
+      const obrasComAtencao = relatorio.filter((item) => item.precisaAtencao);
+      setRelatorioObras(obrasComAtencao);
       setMensagem(
-        `${relatorio.filter((item) => item.precisaAtencao).length} obra(s) precisam de atenção.`
+        obrasComAtencao.length
+          ? `${obrasComAtencao.length} obra(s) precisam de atenção.`
+          : "Todas as obras estão em ordem."
       );
     } catch (erro) {
       console.error(erro);
@@ -522,7 +528,7 @@ export default function Obras() {
           <button
             type="button"
             className="button-primary"
-            onClick={atualizarTodasObrasComCapitulosZerados}
+            onClick={atualizarTodosCapitulosDeTodasObras}
             disabled={
               atualizandoTodas ||
               Boolean(atualizandoObraId) ||
@@ -561,7 +567,8 @@ export default function Obras() {
                   <strong>{item.obra.titulo}</strong>
                   <span>
                     {item.resumo.total} capítulo(s) •{" "}
-                    {item.resumo.precisamAtualizar} para atualizar •{" "}
+                    {item.resumo.semMetricas} sem palavras •{" "}
+                    {item.resumo.antigos} desatualizado(s) •{" "}
                     {item.resumo.ignorados} ignorado(s) •{" "}
                     {item.resumo.semLinkOuId} sem link/ID
                   </span>
