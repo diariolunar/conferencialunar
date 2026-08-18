@@ -381,7 +381,12 @@ export default function ObraDetalhes() {
         linkCapitulo: capitulo.link
       });
 
-      await atualizarDetalhesCapitulo(obraId, capitulo.id, detalhes);
+      const classificacao = await atualizarDetalhesCapitulo(
+        obraId,
+        capitulo.id,
+        detalhes,
+        capitulo
+      );
 
       setCapitulos((listaAtual) =>
         listaAtual.map((item) =>
@@ -390,6 +395,7 @@ export default function ObraDetalhes() {
                 ...item,
                 wattpadId: detalhes.capituloId || item.wattpadId || "",
                 palavras: Number(detalhes.palavras || 0),
+                tipo: classificacao.tipo,
                 paragrafos: Number(detalhes.paragrafos || 0),
                 comentariosTotais: Number(
                   detalhes.comentariosTotaisCapitulo ||

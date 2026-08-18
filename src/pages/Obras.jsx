@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import {
+  buscarObraExistente,
   excluirObra,
   importarObraDoWattpad,
   listarObras,
-  salvarObra
+  salvarObra,
+  substituirObra
 } from "../services/obrasService.js";
 
 import {
@@ -158,28 +160,68 @@ export default function Obras() {
       return;
     }
 
-    try {
-      setImportando(true);
+    const importacoes = previewImportacao.importacoes?.length
+      ? previewImportacao.importacoes
+      : [
+          {
+            obra: previewImportacao.obra,
+            capitulos: previewImportacao.capitulos || [],
+            totalCapitulos: previewImportacao.totalCapitulos || 0
+          }
+        ];
 
-      const importacoes = previewImportacao.importacoes?.length
-        ? previewImportacao.importacoes
-        : [
-            {
-              obra: previewImportacao.obra,
-              capitulos: previewImportacao.capitulos || [],
-              totalCapitulos: previewImportacao.totalCapitulos || 0
-            }
-          ];
+    try {
+      const importacoesConfirmadas = [];
+
+      for (const importacao of importacoes) {
+        const obraExistente = await buscarObraExistente(importacao.obra);
+
+        if (!obraExistente) {
+          importacoesConfirmadas.push({ importacao, obraExistente: null });
+          continue;
+        }
+
+        const substituir = await dialog.confirm({
+          title: "Obra já cadastrada",
+          message:
+            `A obra "${obraExistente.titulo}" já está cadastrada.\n\n` +
+            "Deseja apagar completamente a obra atual e todos os capítulos dela para cadastrar esta nova versão?",
+          confirmLabel: "Substituir obra",
+          cancelLabel: "Não substituir",
+          variant: "danger"
+        });
+
+        if (substituir) {
+          importacoesConfirmadas.push({ importacao, obraExistente });
+        }
+      }
+
+      if (importacoesConfirmadas.length === 0) {
+        setMensagem("Nenhuma obra foi cadastrada.");
+        return;
+      }
+
+      setImportando(true);
 
       let obrasSalvas = 0;
       let capitulosProcessados = 0;
+      let obrasSubstituidas = 0;
+      const obrasIgnoradas = importacoes.length - importacoesConfirmadas.length;
+      let capitulosAtualizados = 0;
+      let falhasAtualizacao = 0;
 
-      for (const importacao of importacoes) {
+      for (const item of importacoesConfirmadas) {
+        const { importacao, obraExistente } = item;
+
         setMensagem(
-          `Salvando ${obrasSalvas + 1}/${importacoes.length}: ${importacao.obra.titulo}`
+          `Salvando ${obrasSalvas + 1}/${importacoesConfirmadas.length}: ${importacao.obra.titulo}`
         );
 
-        const obraId = await salvarObra(importacao.obra);
+        const obraId = obraExistente
+          ? await substituirObra(obraExistente.id, importacao.obra)
+          : await salvarObra(importacao.obra);
+
+        if (obraExistente) obrasSubstituidas += 1;
 
         if (importacao.capitulos?.length) {
           const resultado = await salvarCapitulosDaObra(
@@ -190,6 +232,24 @@ export default function Obras() {
           capitulosProcessados += resultado.total;
         }
 
+        const resultadoAtualizacao = await atualizarCapitulosDaObraEmLote({
+          obra: {
+            ...importacao.obra,
+            id: obraId
+          },
+          onProgress: (progresso) => {
+            if (progresso.etapa !== "atualizando") return;
+
+            setMensagem(
+              `Atualizando obra ${obrasSalvas + 1}/${importacoesConfirmadas.length} - ` +
+                `capítulo ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
+            );
+          }
+        });
+
+        capitulosAtualizados += resultadoAtualizacao.atualizados;
+        falhasAtualizacao += resultadoAtualizacao.falhas;
+
         obrasSalvas += 1;
       }
 
@@ -197,7 +257,12 @@ export default function Obras() {
       fecharModal();
 
       setMensagem(
-        `${obrasSalvas} obra(s) salva(s) com sucesso. ${capitulosProcessados} capítulo(s) processado(s).`
+        `${obrasSalvas} obra(s) salva(s) com sucesso` +
+          `${obrasSubstituidas ? `, ${obrasSubstituidas} substituída(s)` : ""}. ` +
+          `${obrasIgnoradas ? `${obrasIgnoradas} não substituída(s). ` : ""}` +
+          `${capitulosProcessados} capítulo(s) cadastrado(s) e ` +
+          `${capitulosAtualizados} atualizado(s) automaticamente. ` +
+          `${falhasAtualizacao} falha(s) na atualização.`
       );
     } catch (erro) {
       console.error(erro);

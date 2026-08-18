@@ -152,13 +152,19 @@ export async function atualizarCapitulosDaObraEmLote({
         linkCapitulo: capitulo.link
       });
 
-      await atualizarDetalhesCapitulo(obra.id, capitulo.id, detalhes);
+      const classificacao = await atualizarDetalhesCapitulo(
+        obra.id,
+        capitulo.id,
+        detalhes,
+        capitulo
+      );
 
       resultado.atualizados += 1;
       resultado.capitulosAtualizados.push({
         ...capitulo,
         wattpadId: detalhes.capituloId || capitulo.wattpadId || "",
         palavras: Number(detalhes.palavras || 0),
+        tipo: classificacao.tipo,
         paragrafos: Number(detalhes.paragrafos || 0),
         comentariosTotais: Number(
           detalhes.comentariosTotaisCapitulo ||

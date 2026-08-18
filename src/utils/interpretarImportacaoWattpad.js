@@ -1,3 +1,5 @@
+import { classificarTipoCapitulo } from "./classificarTipoCapitulo.js";
+
 export function interpretarImportacaoWattpad(texto = "") {
   const importacoes = interpretarImportacoesWattpad(texto);
 
@@ -118,7 +120,10 @@ function interpretarLinhaCapitulo(linha = "", ordem = 1) {
     palavras,
     paragrafos,
     ordem,
-    tipo: detectarTipoCapitulo(tituloCapitulo)
+    tipo: classificarTipoCapitulo({
+      titulo: tituloCapitulo,
+      palavras
+    })
   };
 }
 
@@ -200,20 +205,6 @@ export function limparTituloCapitulo(titulo = "") {
   limpo = limpo.replace(/\s+(publicado|atualizado|updated|published).*$/i, "");
 
   return limparValor(limpo);
-}
-
-function detectarTipoCapitulo(titulo = "") {
-  const normalizado = titulo.toLowerCase();
-
-  if (normalizado.includes("poesia") || normalizado.includes("poema")) {
-    return "Poesia";
-  }
-
-  if (normalizado.includes("especial")) {
-    return "Especial";
-  }
-
-  return "Normal";
 }
 
 function extrairIdDoLink(link = "") {
