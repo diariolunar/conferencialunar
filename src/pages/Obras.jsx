@@ -449,7 +449,14 @@ export default function Obras() {
     setMensagem("Analisando obras e capítulos cadastrados...");
 
     try {
-      const relatorio = await diagnosticarObras(obras);
+      const relatorio = await diagnosticarObras(obras, {
+        compararComWattpad: true,
+        onProgress: ({ atual, total, obra }) => {
+          setMensagem(
+            `Comparando obra ${atual}/${total} com o Wattpad: ${obra.titulo}`
+          );
+        }
+      });
 
       const obrasComAtencao = relatorio.filter((item) => item.precisaAtencao);
       setRelatorioObras(obrasComAtencao);
@@ -463,6 +470,74 @@ export default function Obras() {
       setMensagem("Erro ao gerar relatório das obras.");
     } finally {
       setDiagnosticando(false);
+    }
+  }
+
+  async function sincronizarObraDoRelatorio(item) {
+    const comparacao = item.comparacaoWattpad;
+    const dadosWattpad = comparacao?.dadosWattpad;
+
+    if (!dadosWattpad?.obra) {
+      setMensagem("Não há dados do Wattpad disponíveis para sincronizar.");
+      return;
+    }
+
+    const confirmar = await dialog.confirm({
+      title: "Sincronizar obra",
+      message:
+        `Deseja substituir a versão cadastrada de “${item.obra.titulo}” pela versão atual do Wattpad? ` +
+        `${comparacao.capitulosNovos.length} capítulo(s) novo(s), ` +
+        `${comparacao.capitulosRemovidos.length} removido(s) e ` +
+        `${comparacao.capitulosAlterados.length} alterado(s) foram identificados.`,
+      confirmLabel: "Sincronizar",
+      variant: "danger"
+    });
+
+    if (!confirmar) return;
+
+    setAtualizandoObraId(item.obra.id);
+    setMensagem(`Sincronizando ${item.obra.titulo}...`);
+
+    try {
+      const obraWattpad = dadosWattpad.obra;
+      const obraSincronizada = {
+        ...item.obra,
+        ...obraWattpad,
+        autor: obraWattpad.autor || item.obra.autor || "",
+        userAutor: obraWattpad.userAutor || item.obra.userAutor || "",
+        descricao: obraWattpad.descricao || item.obra.descricao || "",
+        capa: obraWattpad.capa || item.obra.capa || ""
+      };
+
+      await substituirObra(item.obra.id, obraSincronizada);
+      await salvarCapitulosDaObra(
+        item.obra.id,
+        dadosWattpad.capitulos || []
+      );
+
+      const resultado = await atualizarCapitulosDaObraEmLote({
+        obra: { ...obraSincronizada, id: item.obra.id },
+        onProgress: (progresso) => {
+          if (progresso.etapa === "finalizado") return;
+          setMensagem(
+            `Sincronizando capítulo ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
+          );
+        },
+        onZeroPalavras: tratarCapituloSemPalavras
+      });
+
+      await carregarObras();
+      setRelatorioObras((atual) =>
+        atual.filter((relatorio) => relatorio.obra.id !== item.obra.id)
+      );
+      setMensagem(
+        `“${obraSincronizada.titulo}” sincronizada: ${dadosWattpad.capitulos?.length || 0} capítulo(s) cadastrado(s), ${resultado.atualizados} atualizado(s), ${resultado.ignorados} ignorado(s) e ${resultado.falhas} falha(s).`
+      );
+    } catch (erro) {
+      console.error(erro);
+      setMensagem(erro.message || "Erro ao sincronizar obra.");
+    } finally {
+      setAtualizandoObraId("");
     }
   }
 
@@ -572,16 +647,54 @@ export default function Obras() {
                     {item.resumo.ignorados} ignorado(s) •{" "}
                     {item.resumo.semLinkOuId} sem link/ID
                   </span>
+                  {item.comparacaoWattpad?.temDiferencas && (
+                    <span>
+                      Wattpad: {item.comparacaoWattpad.capitulosNovos.length}{" "}
+                      novo(s) •{" "}
+                      {item.comparacaoWattpad.capitulosRemovidos.length}{" "}
+                      removido(s) •{" "}
+                      {item.comparacaoWattpad.capitulosAlterados.length}{" "}
+                      alterado(s)
+                      {item.comparacaoWattpad.camposObraAlterados.length
+                        ? ` • dados alterados: ${item.comparacaoWattpad.camposObraAlterados.join(
+                            ", "
+                          )}`
+                        : ""}
+                    </span>
+                  )}
+                  {item.comparacaoWattpad?.comparacaoIncompleta && (
+                    <span>
+                      O Wattpad não retornou a lista de capítulos; nenhuma remoção
+                      foi presumida.
+                    </span>
+                  )}
+                  {item.erroComparacaoWattpad && (
+                    <span>Comparação indisponível: {item.erroComparacaoWattpad}</span>
+                  )}
                 </div>
 
-                <button
-                  type="button"
-                  className="button-secondary"
-                  onClick={() => atualizarTodosCapitulosDaObra(item.obra)}
-                  disabled={atualizandoTodas || Boolean(atualizandoObraId)}
-                >
-                  Atualizar
-                </button>
+                {item.comparacaoWattpad?.temDiferencas &&
+                !item.comparacaoWattpad?.comparacaoIncompleta ? (
+                  <button
+                    type="button"
+                    className="button-primary"
+                    onClick={() => sincronizarObraDoRelatorio(item)}
+                    disabled={atualizandoTodas || Boolean(atualizandoObraId)}
+                  >
+                    {atualizandoObraId === item.obra.id
+                      ? "Sincronizando..."
+                      : "Sincronizar"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => atualizarTodosCapitulosDaObra(item.obra)}
+                    disabled={atualizandoTodas || Boolean(atualizandoObraId)}
+                  >
+                    Atualizar
+                  </button>
+                )}
               </div>
             ))}
           </div>

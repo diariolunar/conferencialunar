@@ -4,6 +4,8 @@ import {
   listarCapitulosDaObra
 } from "./capitulosService.js";
 import { buscarDetalhesCapituloWattpad } from "./capitulosDetalhesService.js";
+import { importarObraDoWattpad } from "./obrasService.js";
+import { compararObraComWattpad } from "../utils/compararObraWattpad.js";
 
 const DIAS_PARA_CONSIDERAR_DESATUALIZADO = 14;
 
@@ -61,21 +63,58 @@ export function resumirStatusCapitulos(capitulos = []) {
   );
 }
 
-export async function diagnosticarObras(obras = []) {
+export async function diagnosticarObras(
+  obras = [],
+  { compararComWattpad = false, onProgress = null } = {}
+) {
   const relatorio = [];
 
-  for (const obra of obras) {
+  for (let indice = 0; indice < obras.length; indice += 1) {
+    const obra = obras[indice];
+    onProgress?.({ atual: indice + 1, total: obras.length, obra });
+
     const capitulos = await listarCapitulosDaObra(obra.id);
     const resumo = resumirStatusCapitulos(capitulos);
+    let comparacaoWattpad = null;
+    let erroComparacaoWattpad = "";
+
+    if (compararComWattpad) {
+      const link =
+        obra.link ||
+        (obra.wattpadId
+          ? `https://www.wattpad.com/story/${obra.wattpadId}`
+          : "");
+
+      if (!link) {
+        erroComparacaoWattpad = "Obra sem link ou ID do Wattpad.";
+      } else {
+        try {
+          const dadosWattpad = await importarObraDoWattpad(link);
+          comparacaoWattpad = compararObraComWattpad({
+            obraLocal: obra,
+            capitulosLocais: capitulos,
+            dadosWattpad
+          });
+        } catch (erro) {
+          erroComparacaoWattpad =
+            erro.message || "Não foi possível consultar a obra no Wattpad.";
+        }
+      }
+    }
 
     relatorio.push({
       obra,
       capitulos,
       resumo,
+      comparacaoWattpad,
+      erroComparacaoWattpad,
       precisaAtencao:
         resumo.total === 0 ||
         resumo.precisamAtualizar > 0 ||
-        resumo.semLinkOuId > 0
+        resumo.semLinkOuId > 0 ||
+        Boolean(comparacaoWattpad?.temDiferencas) ||
+        Boolean(comparacaoWattpad?.comparacaoIncompleta) ||
+        Boolean(erroComparacaoWattpad)
     });
   }
 
@@ -86,6 +125,8 @@ export async function diagnosticarObras(obras = []) {
 
     return (
       b.resumo.precisamAtualizar - a.resumo.precisamAtualizar ||
+      Number(Boolean(b.comparacaoWattpad?.temDiferencas)) -
+        Number(Boolean(a.comparacaoWattpad?.temDiferencas)) ||
       b.resumo.semLinkOuId - a.resumo.semLinkOuId ||
       String(a.obra.titulo || "").localeCompare(String(b.obra.titulo || ""))
     );
