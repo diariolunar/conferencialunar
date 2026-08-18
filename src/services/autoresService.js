@@ -12,6 +12,7 @@ import {
 
 import { db } from "../firebase/config.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
+import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
 
 const AUTORES_COLLECTION = "autores";
 
@@ -26,11 +27,13 @@ export async function listarAutores() {
 }
 
 export async function salvarAutor(dados) {
+  const user = canonicalizarUsuario(dados.user);
+
   const ref = await addDoc(collection(db, AUTORES_COLLECTION), {
     nome: dados.nome || "",
     nomeNormalizado: normalizarTexto(dados.nome || ""),
-    user: String(dados.user || "").replace(/^@/, "").trim(),
-    userNormalizado: normalizarTexto(String(dados.user || "").replace(/^@/, "")),
+    user,
+    userNormalizado: normalizarTexto(user),
     linkPerfil: dados.linkPerfil || "",
     criadoEm: serverTimestamp(),
     atualizadoEm: serverTimestamp()
@@ -41,14 +44,15 @@ export async function salvarAutor(dados) {
 
 export async function atualizarAutor(autorId, dados) {
   const ref = doc(db, AUTORES_COLLECTION, autorId);
+  const user = canonicalizarUsuario(dados.user);
 
   await setDoc(
     ref,
     {
       nome: dados.nome || "",
       nomeNormalizado: normalizarTexto(dados.nome || ""),
-      user: String(dados.user || "").replace(/^@/, "").trim(),
-      userNormalizado: normalizarTexto(String(dados.user || "").replace(/^@/, "")),
+      user,
+      userNormalizado: normalizarTexto(user),
       linkPerfil: dados.linkPerfil || "",
       atualizadoEm: serverTimestamp()
     },

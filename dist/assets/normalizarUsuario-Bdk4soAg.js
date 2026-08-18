@@ -1,0 +1,1 @@
+import{t as e}from"./normalizarTexto-DOkekcsi.js";var t=new Map([[`kazmaleao`,`Kazmaleao`]]);function n(n=``){let r=String(n||``).trim().replace(/^@/,``),i=e(r);return t.get(i)||r}function r(t=``){return e(n(t))}export{r as n,n as t};

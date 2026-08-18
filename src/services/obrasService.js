@@ -14,10 +14,15 @@ import {
 
 import { db } from "../firebase/config.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
+import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
 
 const OBRAS_COLLECTION = "obras";
 
 function prepararDadosObra(obra = {}, obraExistente = {}) {
+  const userAutor = canonicalizarUsuario(
+    obra.userAutor || obraExistente.userAutor || ""
+  );
+
   return {
     wattpadId: obra.wattpadId || obraExistente.wattpadId || "",
     titulo: obra.titulo || obraExistente.titulo || "",
@@ -28,10 +33,8 @@ function prepararDadosObra(obra = {}, obraExistente = {}) {
     autorNormalizado: normalizarTexto(
       obra.autor || obraExistente.autor || ""
     ),
-    userAutor: obra.userAutor || obraExistente.userAutor || "",
-    userAutorNormalizado: normalizarTexto(
-      obra.userAutor || obraExistente.userAutor || ""
-    ),
+    userAutor,
+    userAutorNormalizado: normalizarTexto(userAutor),
     descricao: obra.descricao || obraExistente.descricao || "",
     capa: obra.capa || obraExistente.capa || "",
     link: obra.link || obraExistente.link || "",
@@ -152,7 +155,8 @@ export async function atualizarObra(obraId, dados) {
   }
 
   if (dados.userAutor !== undefined) {
-    dadosLimpos.userAutorNormalizado = normalizarTexto(dados.userAutor || "");
+    dadosLimpos.userAutor = canonicalizarUsuario(dados.userAutor);
+    dadosLimpos.userAutorNormalizado = normalizarTexto(dadosLimpos.userAutor);
   }
 
   Object.keys(dadosLimpos).forEach((chave) => {

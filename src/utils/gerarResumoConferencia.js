@@ -1,3 +1,5 @@
+import { canonicalizarUsuario } from "./normalizarUsuario.js";
+
 export function gerarResumoConferencia({
   sub = "",
   diaSemana = "",
@@ -7,6 +9,7 @@ export function gerarResumoConferencia({
   obraTitulo = "",
   capitulos = []
 }) {
+  const userLeitorCanonico = canonicalizarUsuario(userLeitor);
   const aprovados = capitulos.filter((item) => item.resultado?.aprovado);
   const reprovados = capitulos.filter((item) => item.resultado && !item.resultado.aprovado);
 
@@ -14,7 +17,11 @@ export function gerarResumoConferencia({
 
   linhas.push(`📌 Conferência — ${sub}`);
   linhas.push(`📅 Dia: ${diaSemana}`);
-  linhas.push(`👤 Leitor: ${nomeLeitor}${userLeitor ? ` (@${userLeitor})` : ""}`);
+  linhas.push(
+    `👤 Leitor: ${nomeLeitor}${
+      userLeitorCanonico ? ` (@${userLeitorCanonico})` : ""
+    }`
+  );
   linhas.push(`🛡️ ADM: ${adm || "-"}`);
   linhas.push("");
 

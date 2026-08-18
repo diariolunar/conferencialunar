@@ -427,7 +427,9 @@ export async function atualizarDetalhesCapitulo(
       geral: 0
     },
     paragrafosDetalhados: detalhes.paragrafosDetalhados || [],
-    tipo
+    tipo,
+    atualizacaoIgnorada: false,
+    motivoIgnorarAtualizacao: ""
   });
 
   return { tipo };

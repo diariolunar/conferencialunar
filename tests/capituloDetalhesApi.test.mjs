@@ -88,3 +88,24 @@ test("filtrarComentariosDoUsuario aceita user.name e user.username", () => {
   assert.equal(filtrados[0].id, "c1");
   assert.equal(filtrados[0].posicao, "inicio");
 });
+
+test("filtrarComentariosDoUsuario reconhece Kazmaleão como Kazmaleao", () => {
+  const comentarios = [
+    {
+      resource: { namespace: "parts", resourceId: "123" },
+      user: { username: "Kazmaleao" },
+      commentId: { resourceId: "kaz-1" },
+      text: "Comentário encontrado"
+    }
+  ];
+
+  const filtrados = filtrarComentariosDoUsuario({
+    comentarios,
+    capituloId: "123",
+    paragrafos: [],
+    userLeitor: "@Kazmaleão"
+  });
+
+  assert.equal(filtrados.length, 1);
+  assert.equal(filtrados[0].user, "Kazmaleao");
+});

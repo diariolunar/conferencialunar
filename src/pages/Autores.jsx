@@ -9,6 +9,7 @@ import {
 import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
+import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
 
 export default function Autores() {
   const dialog = useDialog();
@@ -101,7 +102,7 @@ export default function Autores() {
     try {
       await salvarOuAtualizarAutor({
         ...formAutor,
-        user: formAutor.user.replace(/^@/, "").trim()
+        user: canonicalizarUsuario(formAutor.user)
       });
 
       setMensagem(formAutor.id ? "Autor atualizado." : "Autor cadastrado.");

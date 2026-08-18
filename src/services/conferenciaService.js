@@ -1,10 +1,11 @@
 import { buscarDetalhesCapituloWattpad } from "./capitulosDetalhesService.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
+import { normalizarUsuario } from "../utils/normalizarUsuario.js";
 
 const USERS_APROVACAO_AUTOMATICA = new Set(["rkymae", "jasonscott37"]);
 
 function normalizarUserLeitor(user = "") {
-  return normalizarTexto(user).replace(/^@/, "").trim();
+  return normalizarUsuario(user);
 }
 
 function userTemAprovacaoAutomatica(user = "") {

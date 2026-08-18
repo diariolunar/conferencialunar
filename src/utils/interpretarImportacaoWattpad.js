@@ -1,4 +1,5 @@
 import { classificarTipoCapitulo } from "./classificarTipoCapitulo.js";
+import { canonicalizarUsuario } from "./normalizarUsuario.js";
 
 export function interpretarImportacaoWattpad(texto = "") {
   const importacoes = interpretarImportacoesWattpad(texto);
@@ -51,7 +52,9 @@ export function interpretarImportacoesWattpad(texto = "") {
     }
 
     if (linhaLower.includes("user") && linhaLower.includes("autor")) {
-      atual.obra.userAutor = limparValor(linha.split(":").slice(1).join(":")).replace(/^@/, "");
+      atual.obra.userAutor = canonicalizarUsuario(
+        limparValor(linha.split(":").slice(1).join(":"))
+      );
       return;
     }
 

@@ -96,11 +96,11 @@ export function DialogProvider({ children }) {
     }
 
     if (dialog.type === "alert") {
-      finalizarDialogo(true);
+      finalizarDialogo(dialog.confirmValue ?? true);
       return;
     }
 
-    finalizarDialogo(true);
+    finalizarDialogo(dialog.confirmValue ?? true);
   }
 
   function handleBackdropClick(evento) {
@@ -203,10 +203,21 @@ export function DialogProvider({ children }) {
                 <button
                   type="button"
                   className="button-secondary"
-                  onClick={() => finalizarDialogo(null)}
+                  onClick={() => finalizarDialogo(dialog.cancelValue ?? null)}
                 >
                   {dialog.cancelLabel}
                 </button>
+              )}
+
+              {dialog.linkUrl && (
+                <a
+                  className="button-secondary"
+                  href={dialog.linkUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {dialog.linkLabel || "Abrir link"}
+                </a>
               )}
 
               <button

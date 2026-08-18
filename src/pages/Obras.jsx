@@ -21,6 +21,7 @@ import {
 import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 import { interpretarImportacoesWattpad } from "../utils/interpretarImportacaoWattpad.js";
+import { decidirCapituloSemPalavras } from "../utils/decidirCapituloSemPalavras.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 
 export default function Obras() {
@@ -40,6 +41,10 @@ export default function Obras() {
   const [cancelarAtualizacao, setCancelarAtualizacao] = useState(null);
   const [diagnosticando, setDiagnosticando] = useState(false);
   const [relatorioObras, setRelatorioObras] = useState([]);
+
+  function tratarCapituloSemPalavras(contexto) {
+    return decidirCapituloSemPalavras({ dialog, ...contexto });
+  }
 
   const obrasFiltradas = useMemo(() => {
     const termo = normalizarTexto(busca);
@@ -208,6 +213,7 @@ export default function Obras() {
       let obrasSubstituidas = 0;
       const obrasIgnoradas = importacoes.length - importacoesConfirmadas.length;
       let capitulosAtualizados = 0;
+      let capitulosIgnorados = 0;
       let falhasAtualizacao = 0;
 
       for (const item of importacoesConfirmadas) {
@@ -244,10 +250,12 @@ export default function Obras() {
               `Atualizando obra ${obrasSalvas + 1}/${importacoesConfirmadas.length} - ` +
                 `capítulo ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
             );
-          }
+          },
+          onZeroPalavras: tratarCapituloSemPalavras
         });
 
         capitulosAtualizados += resultadoAtualizacao.atualizados;
+        capitulosIgnorados += resultadoAtualizacao.ignorados;
         falhasAtualizacao += resultadoAtualizacao.falhas;
 
         obrasSalvas += 1;
@@ -262,6 +270,7 @@ export default function Obras() {
           `${obrasIgnoradas ? `${obrasIgnoradas} não substituída(s). ` : ""}` +
           `${capitulosProcessados} capítulo(s) cadastrado(s) e ` +
           `${capitulosAtualizados} atualizado(s) automaticamente. ` +
+          `${capitulosIgnorados} ignorado(s). ` +
           `${falhasAtualizacao} falha(s) na atualização.`
       );
     } catch (erro) {
@@ -322,6 +331,7 @@ export default function Obras() {
             `Atualizando ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
           );
         },
+        onZeroPalavras: tratarCapituloSemPalavras,
         isCancelled: () => cancelado
       });
 
@@ -366,7 +376,11 @@ export default function Obras() {
             const paragrafos = Number(capitulo.paragrafos || 0);
             const temLinkOuId = Boolean(capitulo.link || capitulo.wattpadId);
 
-            return temLinkOuId && (palavras <= 0 || paragrafos <= 0);
+            return (
+              !capitulo.atualizacaoIgnorada &&
+              temLinkOuId &&
+              (palavras <= 0 || paragrafos <= 0)
+            );
           })
         }))
         .filter((item) => item.capitulosZerados.length > 0);
@@ -379,6 +393,7 @@ export default function Obras() {
 
       let obrasAtualizadas = 0;
       let capitulosAtualizados = 0;
+      let capitulosIgnorados = 0;
       let falhas = 0;
 
       for (let indice = 0; indice < obrasComZerados.length; indice += 1) {
@@ -400,11 +415,13 @@ export default function Obras() {
               `Obra ${indice + 1}/${obrasComZerados.length} - capítulo ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
             );
           },
+          onZeroPalavras: tratarCapituloSemPalavras,
           isCancelled: () => cancelado
         });
 
         if (resultado.atualizados > 0) obrasAtualizadas += 1;
         capitulosAtualizados += resultado.atualizados;
+        capitulosIgnorados += resultado.ignorados;
         falhas += resultado.falhas;
       }
 
@@ -412,7 +429,7 @@ export default function Obras() {
       setRelatorioObras(await diagnosticarObras(obras));
 
       setMensagem(
-        `${cancelado ? "Atualização cancelada." : "Atualização concluída."} ${obrasAtualizadas} obra(s) atualizada(s), ${capitulosAtualizados} capítulo(s) corrigido(s), ${falhas} falha(s).`
+        `${cancelado ? "Atualização cancelada." : "Atualização concluída."} ${obrasAtualizadas} obra(s) atualizada(s), ${capitulosAtualizados} capítulo(s) corrigido(s), ${capitulosIgnorados} ignorado(s), ${falhas} falha(s).`
       );
     } catch (erro) {
       console.error(erro);
@@ -545,6 +562,7 @@ export default function Obras() {
                   <span>
                     {item.resumo.total} capítulo(s) •{" "}
                     {item.resumo.precisamAtualizar} para atualizar •{" "}
+                    {item.resumo.ignorados} ignorado(s) •{" "}
                     {item.resumo.semLinkOuId} sem link/ID
                   </span>
                 </div>
