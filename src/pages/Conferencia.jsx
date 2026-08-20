@@ -13,6 +13,7 @@ import { listarObras } from "../services/obrasService.js";
 import { listarSubs } from "../services/subsService.js";
 
 import {
+  capituloCorrespondeExatamente,
   encontrarCapituloPorTexto,
   listarCapitulosDaObra,
   sugerirCapituloPorTexto
@@ -455,26 +456,6 @@ export default function Conferencia() {
     const exata = candidatos.find((candidato) => candidato.exata);
 
     if (exata) return exata.obra;
-
-    const melhor = candidatos[0];
-
-    if (!melhor) return null;
-
-    const segundoMelhor = candidatos[1];
-    const trechoSemAmbiguidade =
-      melhor.correspondenciaPorTrecho &&
-      (!segundoMelhor || melhor.pontos - segundoMelhor.pontos >= 18);
-
-    const confiavel =
-      melhor.pontos >= 75 &&
-      (melhor.similaridadeTokens >= 0.45 ||
-        melhor.similaridadeGeral >= 0.72 ||
-        trechoSemAmbiguidade);
-
-    if (confiavel) {
-      return melhor.obra;
-    }
-
     return null;
   }
 
@@ -596,10 +577,15 @@ export default function Conferencia() {
       obraEncontrada,
       capitulosDaObra,
       leituras: bloco.capitulos.map((capituloInformado) => {
-        const capituloEncontrado = encontrarCapituloPorTexto(
+        const capituloEncontradoBruto = encontrarCapituloPorTexto(
           capitulosDaObra,
           capituloInformado
         );
+        const capituloEncontrado =
+          capituloEncontradoBruto &&
+          capituloCorrespondeExatamente(capituloEncontradoBruto, capituloInformado)
+            ? capituloEncontradoBruto
+            : null;
         const sugestaoCapitulo = capituloEncontrado
           ? null
           : sugerirCapituloPorTexto(capitulosDaObra, capituloInformado);
@@ -1023,7 +1009,12 @@ export default function Conferencia() {
 
     const capitulos = await listarCapitulosDaObra(obra.id);
     const textoBusca = plano?.leituras?.[index]?.textoFicha || "";
-    const capituloEncontrado = encontrarCapituloPorTexto(capitulos, textoBusca);
+    const capituloEncontradoBruto = encontrarCapituloPorTexto(capitulos, textoBusca);
+    const capituloEncontrado =
+      capituloEncontradoBruto &&
+      capituloCorrespondeExatamente(capituloEncontradoBruto, textoBusca)
+        ? capituloEncontradoBruto
+        : null;
     const sugestaoCapitulo = capituloEncontrado
       ? null
       : sugerirCapituloPorTexto(capitulos, textoBusca);
@@ -1110,14 +1101,30 @@ export default function Conferencia() {
 
     if (!sugestao?.id) return;
 
+    const confirmado = await dialog.confirm({
+      title: "Confirmar obra sugerida",
+      message: `A ficha informou "${plano.leituras[index].obraInformada}". Seria a obra "${sugestao.titulo}"?`,
+      confirmLabel: "Sim, selecionar obra"
+    });
+
+    if (!confirmado) return;
+
     await alterarObraDaLeitura(index, sugestao.id);
     setMensagem(`Obra sugerida aplicada: ${sugestao.titulo}.`);
   }
 
-  function aplicarCapituloSugerido(index) {
+  async function aplicarCapituloSugerido(index) {
     const sugestao = plano?.leituras?.[index]?.sugestaoCapitulo;
 
     if (!sugestao?.id) return;
+
+    const confirmado = await dialog.confirm({
+      title: "Confirmar capítulo sugerido",
+      message: `A ficha informou "${plano.leituras[index].textoFicha}". Seria o capítulo "${sugestao.titulo}"?`,
+      confirmLabel: "Sim, selecionar capítulo"
+    });
+
+    if (!confirmado) return;
 
     alterarCapituloManual(index, sugestao.id);
     setMensagem(`Capítulo sugerido aplicado: ${sugestao.titulo}.`);
@@ -1942,7 +1949,7 @@ export default function Conferencia() {
                                   className="button-secondary"
                                   onClick={() => aplicarObraSugerida(index)}
                                 >
-                                  Usar esta obra
+                                  Confirmar esta obra
                                 </button>
                               </div>
                             )}
@@ -1967,7 +1974,7 @@ export default function Conferencia() {
                                     className="button-secondary"
                                     onClick={() => aplicarCapituloSugerido(index)}
                                   >
-                                    Usar este capítulo
+                                    Confirmar este capítulo
                                   </button>
                                 </div>
                               )}

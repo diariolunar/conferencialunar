@@ -487,6 +487,17 @@ export function encontrarCapituloPorTexto(capitulos = [], texto = "") {
   return null;
 }
 
+export function capituloCorrespondeExatamente(capitulo = {}, texto = "") {
+  const busca = simplificarTexto(texto);
+  const titulo = simplificarTexto(capitulo.titulo || "");
+
+  if (!busca || !titulo) return false;
+  if (busca === titulo) return true;
+
+  const numeroBusca = extrairNumero(texto);
+  return Boolean(numeroBusca && numeroDoCapitulo(capitulo).titulo === numeroBusca);
+}
+
 export function sugerirCapituloPorTexto(capitulos = [], texto = "") {
   const textoNormalizado = simplificarTexto(texto);
   const numeroBusca = extrairNumero(texto);

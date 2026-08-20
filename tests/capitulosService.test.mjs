@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  capituloCorrespondeExatamente,
   encontrarCapituloPorTexto,
   sugerirCapituloPorTexto
 } from "../src/services/capitulosService.js";
@@ -79,6 +80,16 @@ test("não usa a ordem interna quando o título não tem número", () => {
   );
 
   assert.equal(encontrado, null);
+});
+
+test("diferencia correspondência exata de sugestão aproximada", () => {
+  const capitulo = {
+    titulo: "Capítulo 3 - O terceiro dia",
+    ordem: 1
+  };
+
+  assert.equal(capituloCorrespondeExatamente(capitulo, "3"), true);
+  assert.equal(capituloCorrespondeExatamente(capitulo, "O terceiro dia"), false);
 });
 
 test("continua encontrando por título quando não há número explícito", () => {
