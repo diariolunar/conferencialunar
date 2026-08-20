@@ -152,7 +152,9 @@ function capituloCombinaComNumero(capitulo = {}, numeroBusca = null) {
 
   const numero = numeroDoCapitulo(capitulo);
 
-  return numero.ordem === numeroBusca || numero.titulo === numeroBusca;
+  // A ordem é apenas a posição interna do cadastro e não identifica o
+  // capítulo informado pelo leitor. O vínculo numérico precisa vir do título.
+  return numero.titulo === numeroBusca;
 }
 
 function limparTituloParaComparacao(texto = "") {

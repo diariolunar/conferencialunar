@@ -48,6 +48,39 @@ test("reconhece capítulo com zero à esquerda", () => {
   assert.equal(encontrado?.id, "cap-8");
 });
 
+test("usa o número do título e não a ordem interna do cadastro", () => {
+  const capitulosComOrdemDiferente = [
+    {
+      id: "cap-3",
+      titulo: "Capítulo 3 - O terceiro dia",
+      ordem: 1
+    },
+    {
+      id: "cap-1",
+      titulo: "Capítulo 1 - O primeiro dia",
+      ordem: 3
+    }
+  ];
+
+  assert.equal(
+    encontrarCapituloPorTexto(capitulosComOrdemDiferente, "3")?.id,
+    "cap-3"
+  );
+  assert.equal(
+    encontrarCapituloPorTexto(capitulosComOrdemDiferente, "1")?.id,
+    "cap-1"
+  );
+});
+
+test("não usa a ordem interna quando o título não tem número", () => {
+  const encontrado = encontrarCapituloPorTexto(
+    [{ id: "sem-numero", titulo: "Legado", ordem: 1 }],
+    "1"
+  );
+
+  assert.equal(encontrado, null);
+});
+
 test("continua encontrando por título quando não há número explícito", () => {
   const encontrado = encontrarCapituloPorTexto(capitulos, "especial inverno");
 

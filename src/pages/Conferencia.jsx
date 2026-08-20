@@ -424,13 +424,13 @@ export default function Conferencia() {
           titulo
         );
         const similaridadeGeral = similaridadeAproximada(obra.titulo, titulo);
+        const correspondenciaPorTrecho =
+          busca.length >= 4 &&
+          (tituloObra.includes(busca) || busca.includes(tituloObra));
 
         let pontos = 0;
 
-        if (
-          tituloObra &&
-          (tituloObra.includes(busca) || busca.includes(tituloObra))
-        ) {
+        if (correspondenciaPorTrecho) {
           pontos += 80;
         }
 
@@ -442,6 +442,7 @@ export default function Conferencia() {
           pontos,
           similaridadeTokens,
           similaridadeGeral,
+          correspondenciaPorTrecho,
           exata: tituloObra === busca
         };
       })
@@ -459,10 +460,16 @@ export default function Conferencia() {
 
     if (!melhor) return null;
 
+    const segundoMelhor = candidatos[1];
+    const trechoSemAmbiguidade =
+      melhor.correspondenciaPorTrecho &&
+      (!segundoMelhor || melhor.pontos - segundoMelhor.pontos >= 18);
+
     const confiavel =
       melhor.pontos >= 75 &&
       (melhor.similaridadeTokens >= 0.45 ||
-        melhor.similaridadeGeral >= 0.72);
+        melhor.similaridadeGeral >= 0.72 ||
+        trechoSemAmbiguidade);
 
     if (confiavel) {
       return melhor.obra;
