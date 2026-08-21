@@ -8,7 +8,12 @@ const links = [
   { to: "/obras", label: "Obras" },
   { to: "/subs", label: "Subs" },
   { to: "/regras", label: "Regras" },
-  { to: "/configuracoes", label: "Configurações" }
+  { to: "/configuracoes", label: "Configurações" },
+  {
+    href: "https://verificacao-lunar-89sx.vercel.app",
+    label: "Verificações da Ficha",
+    external: true
+  }
 ];
 
 export default function Sidebar({ aberto = false, onClose, onNavigate }) {
@@ -41,11 +46,23 @@ export default function Sidebar({ aberto = false, onClose, onNavigate }) {
         <div className="sidebar-divider" />
 
         <nav className="sidebar-nav">
-          {links.map((link) => (
-            <NavLink key={link.to} to={link.to} onClick={onNavigate}>
-              {link.label}
-            </NavLink>
-          ))}
+          {links.map((link) =>
+            link.external ? (
+              <a
+                key={link.href}
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                onClick={onNavigate}
+              >
+                {link.label}
+              </a>
+            ) : (
+              <NavLink key={link.to} to={link.to} onClick={onNavigate}>
+                {link.label}
+              </NavLink>
+            )
+          )}
         </nav>
       </div>
 
