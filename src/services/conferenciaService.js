@@ -2,10 +2,22 @@ import { buscarDetalhesCapituloWattpad } from "./capitulosDetalhesService.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 import { normalizarUsuario } from "../utils/normalizarUsuario.js";
 
-const USERS_APROVACAO_AUTOMATICA = new Set(["rkymae", "jasonscott37"]);
+const USERS_APROVACAO_AUTOMATICA = new Set([
+  "rkymae",
+  "jasonscott37",
+  "charliespn149"
+]);
 
 function normalizarUserLeitor(user = "") {
   return normalizarUsuario(user);
+}
+
+function canonicalizarUserLeitor(user = "") {
+  const userLimpo = String(user || "").replace(/^@/, "").trim();
+
+  return normalizarUserLeitor(userLimpo) === "jjgreyx"
+    ? "JJ_Greyx"
+    : userLimpo;
 }
 
 function userTemAprovacaoAutomatica(user = "") {
@@ -357,7 +369,10 @@ async function verificarCapituloReal({
     regras?.palavrasPorMinuto
   );
 
-  if (userTemAprovacaoAutomatica(userLeitor)) {
+  if (
+    regras?.aprovacaoAutomaticaUsuarios !== false &&
+    userTemAprovacaoAutomatica(userLeitor)
+  ) {
     return gerarResultadoAprovacaoAutomaticaUsuario({ capitulo, regras });
   }
 
@@ -462,7 +477,7 @@ export async function verificarLeiturasPreparadas({
     const resultado = await verificarCapituloReal({
       capitulo: leitura,
       regras,
-      userLeitor
+      userLeitor: canonicalizarUserLeitor(userLeitor)
     });
 
     resultados.push(resultado);

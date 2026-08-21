@@ -14,7 +14,8 @@ export const REGRAS_PADRAO = {
   palavrasCapituloCurto: 500,
   palavrasCapituloLongo: 4000,
   palavrasPorMinuto: 200,
-  exigeDistribuicaoNormal: true
+  exigeDistribuicaoNormal: true,
+  aprovacaoAutomaticaUsuarios: true
 };
 
 export async function buscarRegrasPadrao() {

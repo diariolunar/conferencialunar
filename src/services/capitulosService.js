@@ -152,7 +152,9 @@ function capituloCombinaComNumero(capitulo = {}, numeroBusca = null) {
 
   const numero = numeroDoCapitulo(capitulo);
 
-  return numero.ordem === numeroBusca || numero.titulo === numeroBusca;
+  // A ordem é apenas a posição interna do cadastro e não identifica o
+  // capítulo informado pelo leitor. O vínculo numérico precisa vir do título.
+  return numero.titulo === numeroBusca;
 }
 
 function limparTituloParaComparacao(texto = "") {
@@ -483,6 +485,17 @@ export function encontrarCapituloPorTexto(capitulos = [], texto = "") {
   }
 
   return null;
+}
+
+export function capituloCorrespondeExatamente(capitulo = {}, texto = "") {
+  const busca = simplificarTexto(texto);
+  const titulo = simplificarTexto(capitulo.titulo || "");
+
+  if (!busca || !titulo) return false;
+  if (busca === titulo) return true;
+
+  const numeroBusca = extrairNumero(texto);
+  return Boolean(numeroBusca && numeroDoCapitulo(capitulo).titulo === numeroBusca);
 }
 
 export function sugerirCapituloPorTexto(capitulos = [], texto = "") {

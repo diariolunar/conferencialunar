@@ -63,60 +63,23 @@ export function resumirStatusCapitulos(capitulos = []) {
   );
 }
 
-export async function diagnosticarObras(
-  obras = [],
-  { compararComWattpad = false, onProgress = null } = {}
-) {
-  const relatorio = [];
+export async function diagnosticarObras(obras = []) {
+  const relatorio = await Promise.all(
+    obras.map(async (obra) => {
+      const capitulos = await listarCapitulosDaObra(obra.id);
+      const resumo = resumirStatusCapitulos(capitulos);
 
-  for (let indice = 0; indice < obras.length; indice += 1) {
-    const obra = obras[indice];
-    onProgress?.({ atual: indice + 1, total: obras.length, obra });
-
-    const capitulos = await listarCapitulosDaObra(obra.id);
-    const resumo = resumirStatusCapitulos(capitulos);
-    let comparacaoWattpad = null;
-    let erroComparacaoWattpad = "";
-
-    if (compararComWattpad) {
-      const link =
-        obra.link ||
-        (obra.wattpadId
-          ? `https://www.wattpad.com/story/${obra.wattpadId}`
-          : "");
-
-      if (!link) {
-        erroComparacaoWattpad = "Obra sem link ou ID do Wattpad.";
-      } else {
-        try {
-          const dadosWattpad = await importarObraDoWattpad(link);
-          comparacaoWattpad = compararObraComWattpad({
-            obraLocal: obra,
-            capitulosLocais: capitulos,
-            dadosWattpad
-          });
-        } catch (erro) {
-          erroComparacaoWattpad =
-            erro.message || "Não foi possível consultar a obra no Wattpad.";
-        }
-      }
-    }
-
-    relatorio.push({
-      obra,
-      capitulos,
-      resumo,
-      comparacaoWattpad,
-      erroComparacaoWattpad,
-      precisaAtencao:
-        resumo.total === 0 ||
-        resumo.precisamAtualizar > 0 ||
-        resumo.semLinkOuId > 0 ||
-        Boolean(comparacaoWattpad?.temDiferencas) ||
-        Boolean(comparacaoWattpad?.comparacaoIncompleta) ||
-        Boolean(erroComparacaoWattpad)
-    });
-  }
+      return {
+        obra,
+        capitulos,
+        resumo,
+        precisaAtencao:
+          resumo.total === 0 ||
+          resumo.precisamAtualizar > 0 ||
+          resumo.semLinkOuId > 0
+      };
+    })
+  );
 
   return relatorio.sort((a, b) => {
     if (a.precisaAtencao !== b.precisaAtencao) {

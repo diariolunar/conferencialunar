@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   collection,
@@ -13,6 +13,7 @@ import { db } from "../firebase/config.js";
 
 import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
+import { buscarRegrasPadrao, salvarRegrasPadrao } from "../services/regrasService.js";
 
 async function apagarColecaoSimples(nomeColecao) {
   const snapshot = await getDocs(collection(db, nomeColecao));
@@ -93,6 +94,37 @@ export default function Configuracoes() {
   const dialog = useDialog();
   const [mensagem, setMensagem] = useState("");
   const [apagando, setApagando] = useState("");
+  const [aprovacaoAutomaticaUsuarios, setAprovacaoAutomaticaUsuarios] =
+    useState(true);
+  const [salvandoConfiguracao, setSalvandoConfiguracao] = useState(false);
+
+  useEffect(() => {
+    buscarRegrasPadrao()
+      .then((regras) => {
+        setAprovacaoAutomaticaUsuarios(regras.aprovacaoAutomaticaUsuarios !== false);
+      })
+      .catch((erro) => console.error(erro));
+  }, []);
+
+  async function alternarAprovacaoAutomatica() {
+    const novoValor = !aprovacaoAutomaticaUsuarios;
+    setSalvandoConfiguracao(true);
+
+    try {
+      await salvarRegrasPadrao({ aprovacaoAutomaticaUsuarios: novoValor });
+      setAprovacaoAutomaticaUsuarios(novoValor);
+      setMensagem(
+        novoValor
+          ? "Aprovação automática dos usuários especiais ativada."
+          : "Aprovação automática dos usuários especiais desativada."
+      );
+    } catch (erro) {
+      console.error(erro);
+      setMensagem("Erro ao salvar essa configuração.");
+    } finally {
+      setSalvandoConfiguracao(false);
+    }
+  }
 
   const statusSistema = useMemo(() => {
     return {
@@ -249,6 +281,37 @@ export default function Configuracoes() {
             <span>Deploy</span>
             <strong>{statusSistema.deploy}</strong>
           </div>
+        </div>
+      </div>
+
+      <div className="card warning-card">
+        <h3>Verificação automática</h3>
+
+        <div className="settings-toggle-row">
+          <div>
+            <strong>Desativar Teste</strong>
+            <p>
+              Controla a aprovação automática de RKymae, CharlieSpn149 e
+              JasonScott37.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className={
+              aprovacaoAutomaticaUsuarios
+                ? "button-secondary"
+                : "button-primary"
+            }
+            onClick={alternarAprovacaoAutomatica}
+            disabled={salvandoConfiguracao}
+          >
+            {salvandoConfiguracao
+              ? "Salvando..."
+              : aprovacaoAutomaticaUsuarios
+                ? "Desativar Teste"
+                : "Ativar Teste"}
+          </button>
         </div>
       </div>
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  capituloCorrespondeExatamente,
   encontrarCapituloPorTexto,
   sugerirCapituloPorTexto
 } from "../src/services/capitulosService.js";
@@ -46,6 +47,49 @@ test("reconhece capítulo com zero à esquerda", () => {
   const encontrado = encontrarCapituloPorTexto(capitulos, "capítulo 08");
 
   assert.equal(encontrado?.id, "cap-8");
+});
+
+test("usa o número do título e não a ordem interna do cadastro", () => {
+  const capitulosComOrdemDiferente = [
+    {
+      id: "cap-3",
+      titulo: "Capítulo 3 - O terceiro dia",
+      ordem: 1
+    },
+    {
+      id: "cap-1",
+      titulo: "Capítulo 1 - O primeiro dia",
+      ordem: 3
+    }
+  ];
+
+  assert.equal(
+    encontrarCapituloPorTexto(capitulosComOrdemDiferente, "3")?.id,
+    "cap-3"
+  );
+  assert.equal(
+    encontrarCapituloPorTexto(capitulosComOrdemDiferente, "1")?.id,
+    "cap-1"
+  );
+});
+
+test("não usa a ordem interna quando o título não tem número", () => {
+  const encontrado = encontrarCapituloPorTexto(
+    [{ id: "sem-numero", titulo: "Legado", ordem: 1 }],
+    "1"
+  );
+
+  assert.equal(encontrado, null);
+});
+
+test("diferencia correspondência exata de sugestão aproximada", () => {
+  const capitulo = {
+    titulo: "Capítulo 3 - O terceiro dia",
+    ordem: 1
+  };
+
+  assert.equal(capituloCorrespondeExatamente(capitulo, "3"), true);
+  assert.equal(capituloCorrespondeExatamente(capitulo, "O terceiro dia"), false);
 });
 
 test("continua encontrando por título quando não há número explícito", () => {
