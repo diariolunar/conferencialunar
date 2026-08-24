@@ -6,15 +6,24 @@ import {
   LIMITE_PALAVRAS_CAPITULO_ESPECIAL
 } from "../src/utils/classificarTipoCapitulo.js";
 
-test("classifica capítulo com menos de 900 palavras como Especial", () => {
+test("classifica título curto sem indicação de capítulo como Especial", () => {
   assert.equal(
     classificarTipoCapitulo({
-      titulo: "Capítulo 1",
+      titulo: "Nota da autora",
       palavras: 899,
       tipoAtual: "Normal"
     }),
     "Especial"
   );
+});
+
+test("mantém como Normal capítulo curto identificado pelo título", () => {
+  for (const titulo of ["Capítulo 1", "Cap 2", "Parte III", "Episódio 4"]) {
+    assert.equal(
+      classificarTipoCapitulo({ titulo, palavras: 899, tipoAtual: "Especial" }),
+      "Normal"
+    );
+  }
 });
 
 test("não classifica 900 palavras ou contagem desconhecida como Especial", () => {
