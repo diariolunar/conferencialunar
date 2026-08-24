@@ -92,6 +92,22 @@ test("diferencia correspondência exata de sugestão aproximada", () => {
   assert.equal(capituloCorrespondeExatamente(capitulo, "O terceiro dia"), false);
 });
 
+test("reconhece capítulo romano pelo número decimal", () => {
+  const capitulosRomanos = [
+    { id: "cap-3", titulo: "ＣＡＰÍＴＵＬＯ Ⅲ — O retorno", ordem: 1 },
+    { id: "cap-4", titulo: "CAPÍTULO IV — A escolha", ordem: 2 }
+  ];
+
+  assert.equal(
+    encontrarCapituloPorTexto(capitulosRomanos, "3")?.id,
+    "cap-3"
+  );
+  assert.equal(
+    encontrarCapituloPorTexto(capitulosRomanos, "IV")?.id,
+    "cap-4"
+  );
+});
+
 test("continua encontrando por título quando não há número explícito", () => {
   const encontrado = encontrarCapituloPorTexto(capitulos, "especial inverno");
 

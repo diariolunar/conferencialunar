@@ -5,6 +5,7 @@ const USUARIOS_CANONICOS = new Map([["kazmaleao", "Kazmaleao"]]);
 export function canonicalizarUsuario(usuario = "") {
   const usuarioLimpo = String(usuario || "")
     .trim()
+    .replace(/\s+/g, "")
     .replace(/^@/, "");
   const chave = normalizarTexto(usuarioLimpo);
 

@@ -117,14 +117,35 @@ function calcularSimilaridadeGeral(textoA = "", textoB = "") {
   );
 }
 
+function converterRomanoParaNumero(texto = "") {
+  const valores = { i: 1, v: 5, x: 10, l: 50, c: 100, d: 500, m: 1000 };
+  const romano = String(texto || "").toLowerCase();
+
+  if (!romano || !/^[ivxlcdm]+$/.test(romano)) return null;
+
+  let total = 0;
+
+  for (let index = 0; index < romano.length; index += 1) {
+    const atual = valores[romano[index]] || 0;
+    const proximo = valores[romano[index + 1]] || 0;
+    total += atual < proximo ? -atual : atual;
+  }
+
+  return total || null;
+}
+
 function extrairNumero(texto = "") {
   const normalizado = simplificarTexto(texto);
 
   const matchCapitulo = normalizado.match(
-    /(?:capitulo|cap|parte|episodio|ep)\s*(\d+)/
+    /(?:capitulo|cap|parte|episodio|ep)\s*([ivxlcdm]+|\d+)/i
   );
 
-  if (matchCapitulo?.[1]) return Number(matchCapitulo[1]);
+  if (matchCapitulo?.[1]) {
+    return /^\d+$/.test(matchCapitulo[1])
+      ? Number(matchCapitulo[1])
+      : converterRomanoParaNumero(matchCapitulo[1]);
+  }
 
   const matchNumeroSolto = normalizado.match(/^0*(\d+)$/);
 
@@ -133,6 +154,9 @@ function extrairNumero(texto = "") {
   const matchPrimeiroNumero = normalizado.match(/\b0*(\d+)\b/);
 
   if (matchPrimeiroNumero?.[1]) return Number(matchPrimeiroNumero[1]);
+
+  const romanoSolto = normalizado.match(/^[ivxlcdm]+$/i);
+  if (romanoSolto?.[0]) return converterRomanoParaNumero(romanoSolto[0]);
 
   return null;
 }
@@ -183,7 +207,6 @@ function pontuarCapitulo(capitulo, textoBusca = "") {
   let pontos = 0;
 
   if (numeroBusca) {
-    if (numeroCapitulo.ordem === numeroBusca) pontos += 100;
     if (numeroCapitulo.titulo === numeroBusca) pontos += 95;
   }
 
