@@ -29,3 +29,15 @@ test("mantém capítulos informados quando a obra não é marcada como minha", (
   assert.deepEqual(ficha.capitulosInformados, ["I", "II"]);
   assert.equal(ficha.blocosObras[0].minhaObra, false);
 });
+
+test("reconhece o marcador (minha) depois do nome da obra", () => {
+  const ficha = interpretarFicha(`
+    User: @Leitora
+    Obra 1: O Amado da Luzz (minha)
+    Capítulos lidos: 1 e 2
+  `);
+
+  assert.equal(ficha.obraLida, "O Amado da Luzz");
+  assert.equal(ficha.blocosObras[0].minhaObra, true);
+  assert.deepEqual(ficha.capitulosInformados, ["MINHA_OBRA"]);
+});

@@ -254,6 +254,7 @@ function valorIndicaMinhaObra(valor = "") {
 
   return (
     /^\(?minha\)?(?:\s|$)/.test(normalizada) ||
+    /(?:^|\s)\(?minha\)?$/.test(normalizada) ||
     normalizada.includes("minha obra") ||
     normalizada.includes("obra minha") ||
     normalizada.includes("propria")
@@ -261,7 +262,10 @@ function valorIndicaMinhaObra(valor = "") {
 }
 
 function limparMarcadorMinhaObra(valor = "") {
-  return limparValor(valor).replace(/^\(?minha\)?\s*[:\-–—]?\s*/i, "");
+  return limparValor(valor)
+    .replace(/^\(?minha\)?\s*[:\-–—]?\s*/i, "")
+    .replace(/\s*\(?minha\)?\s*$/i, "")
+    .trim();
 }
 
 function valorIndicaObraAusente(valor = "") {
