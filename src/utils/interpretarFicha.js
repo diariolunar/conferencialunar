@@ -140,7 +140,7 @@ function ehLinhaObra(linha = "") {
   const normalizada = n(linha);
 
   return (
-    /^obra\s*\d+\s*[:：\-–—]/i.test(normalizada) ||
+    /^obra(?:\s*\d+)?\s*[:：\-–—]/i.test(normalizada) ||
     /^grimorio\s*\d+\s*[:：\-–—]/i.test(normalizada) ||
     /^grimonio\s*\d+\s*[:：\-–—]/i.test(normalizada) ||
     /^mundo\s*\d+\s*[:：\-–—]/i.test(normalizada) ||

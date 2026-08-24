@@ -41,3 +41,15 @@ test("reconhece o marcador (minha) depois do nome da obra", () => {
   assert.equal(ficha.blocosObras[0].minhaObra, true);
   assert.deepEqual(ficha.capitulosInformados, ["MINHA_OBRA"]);
 });
+
+test("aceita ficha com uma única obra sem número", () => {
+  const ficha = interpretarFicha(`
+    User: @Leitora
+    Obra: O Amado da Luzz
+    Capítulos lidos: 1 e 2
+  `);
+
+  assert.equal(ficha.blocosObras.length, 1);
+  assert.equal(ficha.obraLida, "O Amado da Luzz");
+  assert.deepEqual(ficha.capitulosInformados, ["1", "2"]);
+});
