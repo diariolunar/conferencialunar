@@ -5,16 +5,26 @@ import { __testables } from "../api/wattpad/capitulo-detalhes.js";
 
 const {
   combinarParagrafos,
+  extrairContagemPalavrasPagina,
   extrairNomeUsuarioComentario,
   filtrarComentariosDoUsuario,
   obterContagemPalavras
 } = __testables;
 
-test("prioriza a contagem oficial do Wattpad sobre o texto HTML", () => {
+test("ignora length, que é tamanho do conteúdo, ao contar palavras", () => {
   assert.equal(
     obterContagemPalavras(
-      { length: 3992 },
+      { length: 5096 },
       [{ palavras: 4349 }]
+    ),
+    4349
+  );
+});
+
+test("extrai wordCount da página do capítulo", () => {
+  assert.equal(
+    extrairContagemPalavrasPagina(
+      '..."wordCount":3992,"text_url":"https://www.wattpad.com/apiv2/"...'
     ),
     3992
   );

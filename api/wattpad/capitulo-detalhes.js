@@ -210,6 +210,22 @@ async function fetchParteApi(capituloId) {
   return fetchJsonSeguro(`https://www.wattpad.com/v4/parts/${capituloId}`, {});
 }
 
+async function fetchPaginaCapitulo(capituloId) {
+  try {
+    return await fetchTextoSeguro(`https://www.wattpad.com/${capituloId}`);
+  } catch {
+    return "";
+  }
+}
+
+function extrairContagemPalavrasPagina(html = "") {
+  const match = String(html || "").match(
+    /["']wordCount["']\s*:\s*(\d+)/i
+  );
+
+  return match?.[1] ? Number(match[1]) : 0;
+}
+
 function montarUrlComentariosGerais(capituloId, afterResourceId = "") {
   const url = new URL(
     `https://www.wattpad.com/v5/comments/namespaces/parts/resources/${capituloId}/comments`
@@ -293,7 +309,7 @@ function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
 
 function obterContagemPalavras(parteApi = {}, paragrafos = []) {
   const contagemOficial = Number(
-    parteApi.wordCount || parteApi.words || parteApi.length || 0
+    parteApi.wordCount || parteApi.words || 0
   );
 
   if (Number.isFinite(contagemOficial) && contagemOficial > 0) {
@@ -471,10 +487,11 @@ export default async function handler(req, res) {
       });
     }
 
-    const [html, paragrafosApi, parteApi, buscaComentarios] = await Promise.all([
+    const [html, paragrafosApi, parteApi, paginaCapitulo, buscaComentarios] = await Promise.all([
       fetchTextoCapitulo(id),
       fetchParagrafosApi(id),
       fetchParteApi(id),
+      fetchPaginaCapitulo(id),
       fetchComentariosGeraisCapitulo(id)
     ]);
 
@@ -491,7 +508,8 @@ export default async function handler(req, res) {
       })
     );
 
-    const palavras = obterContagemPalavras(parteApi, paragrafos);
+    const palavrasPagina = extrairContagemPalavrasPagina(paginaCapitulo);
+    const palavras = palavrasPagina || obterContagemPalavras(parteApi, paragrafos);
 
     const comentariosTotaisCapitulo = comentariosGerais.length;
 
@@ -543,6 +561,7 @@ export default async function handler(req, res) {
 
 export const __testables = {
   combinarParagrafos,
+  extrairContagemPalavrasPagina,
   obterContagemPalavras,
   contarDistribuicaoComentarios,
   extrairNomeUsuarioComentario,
