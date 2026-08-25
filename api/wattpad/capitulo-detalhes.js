@@ -206,6 +206,10 @@ async function fetchParagrafosApi(capituloId) {
   return Array.isArray(dados?.paragraphs) ? dados.paragraphs : [];
 }
 
+async function fetchParteApi(capituloId) {
+  return fetchJsonSeguro(`https://www.wattpad.com/v4/parts/${capituloId}`, {});
+}
+
 function montarUrlComentariosGerais(capituloId, afterResourceId = "") {
   const url = new URL(
     `https://www.wattpad.com/v5/comments/namespaces/parts/resources/${capituloId}/comments`
@@ -285,6 +289,21 @@ function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
       posicao: classificarPosicao(index, totalReal)
     };
   });
+}
+
+function obterContagemPalavras(parteApi = {}, paragrafos = []) {
+  const contagemOficial = Number(
+    parteApi.wordCount || parteApi.words || parteApi.length || 0
+  );
+
+  if (Number.isFinite(contagemOficial) && contagemOficial > 0) {
+    return contagemOficial;
+  }
+
+  return paragrafos.reduce(
+    (total, paragrafo) => total + Number(paragrafo.palavras || 0),
+    0
+  );
 }
 
 function criarMapaParagrafos(paragrafos = []) {
@@ -452,9 +471,10 @@ export default async function handler(req, res) {
       });
     }
 
-    const [html, paragrafosApi, buscaComentarios] = await Promise.all([
+    const [html, paragrafosApi, parteApi, buscaComentarios] = await Promise.all([
       fetchTextoCapitulo(id),
       fetchParagrafosApi(id),
+      fetchParteApi(id),
       fetchComentariosGeraisCapitulo(id)
     ]);
 
@@ -471,10 +491,7 @@ export default async function handler(req, res) {
       })
     );
 
-    const palavras = paragrafos.reduce(
-      (total, paragrafo) => total + Number(paragrafo.palavras || 0),
-      0
-    );
+    const palavras = obterContagemPalavras(parteApi, paragrafos);
 
     const comentariosTotaisCapitulo = comentariosGerais.length;
 
@@ -526,6 +543,7 @@ export default async function handler(req, res) {
 
 export const __testables = {
   combinarParagrafos,
+  obterContagemPalavras,
   contarDistribuicaoComentarios,
   extrairNomeUsuarioComentario,
   extrairParagrafoIdDoComentario,

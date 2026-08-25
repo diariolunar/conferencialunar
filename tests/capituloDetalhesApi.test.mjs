@@ -6,8 +6,19 @@ import { __testables } from "../api/wattpad/capitulo-detalhes.js";
 const {
   combinarParagrafos,
   extrairNomeUsuarioComentario,
-  filtrarComentariosDoUsuario
+  filtrarComentariosDoUsuario,
+  obterContagemPalavras
 } = __testables;
+
+test("prioriza a contagem oficial do Wattpad sobre o texto HTML", () => {
+  assert.equal(
+    obterContagemPalavras(
+      { length: 3992 },
+      [{ palavras: 4349 }]
+    ),
+    3992
+  );
+});
 
 test("combinarParagrafos preserva a ordem do texto real quando a API traz ids extras", () => {
   const paragrafosHtml = [
