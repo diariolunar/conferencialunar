@@ -6,6 +6,7 @@ import { __testables } from "../api/wattpad/capitulo-detalhes.js";
 const {
   combinarParagrafos,
   extrairContagemPalavrasPagina,
+  extrairIdObraPagina,
   extrairNomeUsuarioComentario,
   filtrarComentariosDoUsuario,
   obterContagemPalavras
@@ -28,6 +29,10 @@ test("extrai wordCount da página do capítulo", () => {
     ),
     3992
   );
+});
+
+test("extrai o ID da obra a partir da página do capítulo", () => {
+  assert.equal(extrairIdObraPagina('href="/story/345463813"'), "345463813");
 });
 
 test("combinarParagrafos preserva a ordem do texto real quando a API traz ids extras", () => {

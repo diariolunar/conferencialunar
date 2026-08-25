@@ -226,6 +226,28 @@ function extrairContagemPalavrasPagina(html = "") {
   return match?.[1] ? Number(match[1]) : 0;
 }
 
+function extrairIdObraPagina(html = "") {
+  const match = String(html || "").match(/story\/(\d+)/i);
+  return match?.[1] || "";
+}
+
+async function buscarContagemPalavrasNaObra(capituloId, htmlPagina = "") {
+  const obraId = extrairIdObraPagina(htmlPagina);
+
+  if (!obraId) return 0;
+
+  const dados = await fetchJsonSeguro(
+    `https://www.wattpad.com/api/v3/stories/${obraId}?fields=id,parts(id,wordCount)`,
+    { parts: [] }
+  );
+  const parte = Array.isArray(dados?.parts)
+    ? dados.parts.find((item) => String(item.id) === String(capituloId))
+    : null;
+
+  const palavras = Number(parte?.wordCount || 0);
+  return Number.isFinite(palavras) && palavras > 0 ? palavras : 0;
+}
+
 function montarUrlComentariosGerais(capituloId, afterResourceId = "") {
   const url = new URL(
     `https://www.wattpad.com/v5/comments/namespaces/parts/resources/${capituloId}/comments`
@@ -508,8 +530,10 @@ export default async function handler(req, res) {
       })
     );
 
+    const palavrasObra = await buscarContagemPalavrasNaObra(id, paginaCapitulo);
     const palavrasPagina = extrairContagemPalavrasPagina(paginaCapitulo);
-    const palavras = palavrasPagina || obterContagemPalavras(parteApi, paragrafos);
+    const palavras =
+      palavrasObra || palavrasPagina || obterContagemPalavras(parteApi, paragrafos);
 
     const comentariosTotaisCapitulo = comentariosGerais.length;
 
@@ -562,6 +586,7 @@ export default async function handler(req, res) {
 export const __testables = {
   combinarParagrafos,
   extrairContagemPalavrasPagina,
+  extrairIdObraPagina,
   obterContagemPalavras,
   contarDistribuicaoComentarios,
   extrairNomeUsuarioComentario,
