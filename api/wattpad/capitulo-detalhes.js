@@ -80,7 +80,10 @@ function limparHtml(texto = "") {
 
 function contarPalavras(html = "") {
   const texto = limparHtml(html);
-  return texto ? texto.match(/\S+/g)?.length || 0 : 0;
+  // O Wattpad conta palavras, não tokens separados por espaço. Emojis,
+  // símbolos e pontuação isolados (comuns em títulos estilizados) não entram
+  // na contagem exibida pela plataforma.
+  return texto ? texto.match(/[\p{L}\p{N}]+/gu)?.length || 0 : 0;
 }
 
 function extrairParagrafosDoHtml(html = "") {
@@ -532,8 +535,11 @@ export default async function handler(req, res) {
 
     const palavrasObra = await buscarContagemPalavrasNaObra(id, paginaCapitulo);
     const palavrasPagina = extrairContagemPalavrasPagina(paginaCapitulo);
+    // A contagem calculada a partir do texto dos parágrafos é mais confiável
+    // que o wordCount embutido na página, que em alguns capítulos vem
+    // desatualizado ou inclui tokens que o Wattpad não considera palavras.
     const palavras =
-      palavrasObra || palavrasPagina || obterContagemPalavras(parteApi, paragrafos);
+      palavrasObra || obterContagemPalavras(parteApi, paragrafos) || palavrasPagina;
 
     const comentariosTotaisCapitulo = comentariosGerais.length;
 
@@ -585,6 +591,7 @@ export default async function handler(req, res) {
 
 export const __testables = {
   combinarParagrafos,
+  contarPalavras,
   extrairContagemPalavrasPagina,
   extrairIdObraPagina,
   obterContagemPalavras,

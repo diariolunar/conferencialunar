@@ -5,12 +5,17 @@ import { __testables } from "../api/wattpad/capitulo-detalhes.js";
 
 const {
   combinarParagrafos,
+  contarPalavras,
   extrairContagemPalavrasPagina,
   extrairIdObraPagina,
   extrairNomeUsuarioComentario,
   filtrarComentariosDoUsuario,
   obterContagemPalavras
 } = __testables;
+
+test("conta apenas palavras e numeros, ignorando emojis e simbolos isolados", () => {
+  assert.equal(contarPalavras("Capítulo 2: 🌿 Experiência — desejável!"), 4);
+});
 
 test("ignora length, que é tamanho do conteúdo, ao contar palavras", () => {
   assert.equal(
