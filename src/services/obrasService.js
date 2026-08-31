@@ -15,6 +15,7 @@ import {
 import { db } from "../firebase/config.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
+import { sincronizarAutorWattpad } from "./autoresService.js";
 
 const OBRAS_COLLECTION = "obras";
 
@@ -25,6 +26,7 @@ function prepararDadosObra(obra = {}, obraExistente = {}) {
 
   return {
     wattpadId: obra.wattpadId || obraExistente.wattpadId || "",
+    autorId: obra.autorId || obraExistente.autorId || "",
     titulo: obra.titulo || obraExistente.titulo || "",
     tituloNormalizado: normalizarTexto(
       obra.titulo || obraExistente.titulo || ""
@@ -127,6 +129,13 @@ export async function salvarObra(obra) {
 
     await setDoc(ref, dados, { merge: true });
 
+    try {
+      const autor = await sincronizarAutorWattpad(obra);
+      if (autor?.id) await atualizarObra(obraExistente.id, { autorId: autor.id });
+    } catch (erro) {
+      console.warn("Não foi possível vincular o autor da obra:", erro.message);
+    }
+
     return obraExistente.id;
   }
 
@@ -134,6 +143,13 @@ export async function salvarObra(obra) {
     ...dados,
     criadoEm: serverTimestamp()
   });
+
+  try {
+    const autor = await sincronizarAutorWattpad(obra);
+    if (autor?.id) await atualizarObra(ref.id, { autorId: autor.id });
+  } catch (erro) {
+    console.warn("Não foi possível vincular o autor da obra:", erro.message);
+  }
 
   return ref.id;
 }
@@ -190,6 +206,13 @@ export async function substituirObra(obraId, obra) {
     ...prepararDadosObra(obra),
     criadoEm: serverTimestamp()
   });
+
+  try {
+    const autor = await sincronizarAutorWattpad(obra);
+    if (autor?.id) await atualizarObra(obraId, { autorId: autor.id });
+  } catch (erro) {
+    console.warn("Não foi possível vincular o autor da obra:", erro.message);
+  }
 
   return obraId;
 }

@@ -7,6 +7,7 @@ import {
   importarObraDoWattpad,
   listarObras
 } from "../services/obrasService.js";
+import { sincronizarAutorWattpad } from "../services/autoresService.js";
 import {
   listarCapitulosDaObra,
   salvarCapitulosDaObra
@@ -179,6 +180,11 @@ export default function Atualizacao() {
             obra.id,
             dadosDaObraAtualizados(obra, dadosWattpad, linkObra)
           );
+          const autor = await sincronizarAutorWattpad({
+            nome: dadosWattpad.obra?.autor || obra.autor,
+            user: dadosWattpad.obra?.userAutor || obra.userAutor
+          });
+          if (autor?.id) await atualizarObra(obra.id, { autorId: autor.id });
           atualizadas += 1;
         } catch (erro) {
           console.error(erro);

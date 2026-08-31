@@ -147,6 +147,53 @@
   background: rgba(255, 200, 87, 0.055);
 }
 
+.author-profile-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+
+.author-profile-heading strong {
+  margin-bottom: 0;
+}
+
+.author-profile-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+}
+
+.author-profile-description {
+  max-width: 720px;
+  margin-top: 8px !important;
+  white-space: pre-line;
+}
+
+.author-linked-works {
+  margin-top: 10px;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+.author-linked-works summary {
+  cursor: pointer;
+  color: var(--color-gold);
+}
+
+.author-linked-works ul {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.author-linked-works a {
+  color: var(--color-text);
+}
+
 .works-report-item strong {
   display: block;
   color: var(--color-gold);

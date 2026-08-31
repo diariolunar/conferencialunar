@@ -26,6 +26,7 @@ import { interpretarImportacoesWattpad } from "../utils/interpretarImportacaoWat
 import { decidirCapituloSemPalavras } from "../utils/decidirCapituloSemPalavras.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 import { compararObraComWattpad } from "../utils/compararObraWattpad.js";
+import { sincronizarAutorWattpad } from "../services/autoresService.js";
 
 export default function Obras() {
   const dialog = useDialog();
@@ -353,6 +354,14 @@ export default function Obras() {
           link: dadosWattpad.obra?.link || obra.link || linkObra,
           wattpadId: dadosWattpad.obra?.wattpadId || obra.wattpadId || ""
         });
+      }
+
+      const autorVinculado = await sincronizarAutorWattpad({
+        nome: dadosWattpad.obra?.autor || obra.autor,
+        user: dadosWattpad.obra?.userAutor || obra.userAutor
+      });
+      if (autorVinculado?.id) {
+        await atualizarObra(obra.id, { autorId: autorVinculado.id });
       }
 
       if (!novos.length) {

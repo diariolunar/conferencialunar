@@ -18,11 +18,15 @@ import {
   atualizarCapitulosDaObraEmLote,
   formatarResumoAtualizacao
 } from "../services/atualizacaoCapitulosService.js";
-import { listarAutores } from "../services/autoresService.js";
+import {
+  listarAutores,
+  sincronizarAutorWattpad
+} from "../services/autoresService.js";
 import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 import { decidirCapituloSemPalavras } from "../utils/decidirCapituloSemPalavras.js";
 import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
+import { normalizarTexto } from "../utils/normalizarTexto.js";
 
 const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
 
@@ -126,7 +130,15 @@ export default function ObraDetalhes() {
       setCapitulos(capitulosEncontrados);
       setAutores(autoresEncontrados);
 
-      setAutorSelecionadoId(obraEncontrada.autorId || "");
+      const autorVinculado =
+        autoresEncontrados.find((item) => item.id === obraEncontrada.autorId) ||
+        autoresEncontrados.find(
+          (item) =>
+            normalizarTexto(item.user || "") ===
+            normalizarTexto(obraEncontrada.userAutor || "")
+        );
+
+      setAutorSelecionadoId(autorVinculado?.id || "");
       setTituloObra(obraEncontrada.titulo || "");
       setAutor(obraEncontrada.autor || "");
       setUserAutor(obraEncontrada.userAutor || "");
@@ -167,11 +179,17 @@ export default function ObraDetalhes() {
     setMensagem("");
 
     try {
+      const userCanonico = canonicalizarUsuario(userAutor);
+      const autorVinculado = await sincronizarAutorWattpad({
+        nome: autor.trim(),
+        user: userCanonico
+      });
+
       await atualizarObra(obraId, {
         titulo: tituloObra.trim(),
-        autorId: autorSelecionadoId,
+        autorId: autorVinculado?.id || autorSelecionadoId,
         autor: autor.trim(),
-        userAutor: canonicalizarUsuario(userAutor),
+        userAutor: userCanonico,
         capa: capa.trim(),
         link: linkObra.trim()
       });

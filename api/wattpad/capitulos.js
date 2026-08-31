@@ -258,6 +258,8 @@ function extrairDeJsons(html = "") {
 
     if (!Array.isArray(partes)) continue;
 
+    const usuario = story.user || story.author || {};
+
     return {
       titulo: limparHtml(story.title || story.name || ""),
       capa:
@@ -267,6 +269,8 @@ function extrairDeJsons(html = "") {
         story.image ||
         "",
       descricao: limparHtml(story.description || story.summary || ""),
+      autor: limparHtml(usuario.name || usuario.fullname || ""),
+      userAutor: usuario.username || "",
       capitulos: partes.map((part, index) => normalizarCapitulo(part.item || part, index))
     };
   }
@@ -390,8 +394,10 @@ export default async function handler(req, res) {
         wattpadId,
         titulo: titulo || `Obra ${wattpadId}`,
         capa,
-        descricao,
-        link: url
+          descricao,
+          autor: dadosJson.autor || "",
+          userAutor: dadosJson.userAutor || "",
+          link: url
       },
       capitulos,
       totalCapitulos: capitulos.length,

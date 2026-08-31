@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import {
   excluirAutor,
   listarAutores,
   salvarOuAtualizarAutor
 } from "../services/autoresService.js";
+import { listarObras } from "../services/obrasService.js";
 
 import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
@@ -14,6 +16,7 @@ import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
 export default function Autores() {
   const dialog = useDialog();
   const [autores, setAutores] = useState([]);
+  const [obras, setObras] = useState([]);
   const [busca, setBusca] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [carregando, setCarregando] = useState(true);
@@ -46,13 +49,36 @@ export default function Autores() {
       );
   }, [autores, busca]);
 
+  const obrasPorAutor = useMemo(() => {
+    const mapa = new Map();
+
+    autores.forEach((autor) => {
+      const userNormalizado = normalizarTexto(autor.user || "");
+      mapa.set(
+        autor.id,
+        obras.filter(
+          (obra) =>
+            obra.autorId === autor.id ||
+            (userNormalizado &&
+              normalizarTexto(obra.userAutor || "") === userNormalizado)
+        )
+      );
+    });
+
+    return mapa;
+  }, [autores, obras]);
+
   async function carregarAutores() {
     setCarregando(true);
     setMensagem("");
 
     try {
-      const lista = await listarAutores();
+      const [lista, obrasEncontradas] = await Promise.all([
+        listarAutores(),
+        listarObras()
+      ]);
       setAutores(lista);
+      setObras(obrasEncontradas);
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao carregar autores.");
@@ -255,11 +281,44 @@ export default function Autores() {
             {autoresFiltrados.map((autor) => (
               <div className="dashboard-list-item" key={autor.id}>
                 <div>
-                  <strong>{autor.nome}</strong>
+                  <div className="author-profile-heading">
+                    {autor.avatar ? (
+                      <img
+                        className="author-profile-avatar"
+                        src={autor.avatar}
+                        alt=""
+                      />
+                    ) : null}
+                    <strong>{autor.nome || autor.user}</strong>
+                  </div>
                   <span>
                     @{autor.user}
                     {autor.linkPerfil ? ` • ${autor.linkPerfil}` : ""}
                   </span>
+                  {autor.descricaoPerfil && (
+                    <span className="author-profile-description">
+                      {autor.descricaoPerfil}
+                    </span>
+                  )}
+                  <span>
+                    {Number(autor.seguidores || 0)} seguidores •{" "}
+                    {Number(autor.seguindo || 0)} seguindo •{" "}
+                    {Number(autor.historiasPublicadas || 0)} história(s) •{" "}
+                    {(obrasPorAutor.get(autor.id) || []).length} obra(s) vinculada(s)
+                    {autor.verificado ? " • perfil verificado" : ""}
+                  </span>
+                  {(obrasPorAutor.get(autor.id) || []).length > 0 && (
+                    <details className="author-linked-works">
+                      <summary>Ver obras vinculadas</summary>
+                      <ul>
+                        {obrasPorAutor.get(autor.id).map((obra) => (
+                          <li key={obra.id}>
+                            <Link to={`/obras/${obra.id}`}>{obra.titulo}</Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </div>
 
                 <div className="actions-row">
