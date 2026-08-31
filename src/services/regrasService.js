@@ -5,6 +5,12 @@ import { db } from "../firebase/config.js";
 const CONFIG_COLLECTION = "configuracoes";
 const REGRAS_DOCUMENT = "regrasPadrao";
 
+export const USUARIOS_APROVACAO_AUTOMATICA_PADRAO = [
+  "RKymae",
+  "CharlieSpn149",
+  "JasonScott37"
+];
+
 export const REGRAS_PADRAO = {
   minimoNormal: 6,
   minimoCurto: 1,
@@ -15,7 +21,8 @@ export const REGRAS_PADRAO = {
   palavrasCapituloLongo: 4000,
   palavrasPorMinuto: 200,
   exigeDistribuicaoNormal: true,
-  aprovacaoAutomaticaUsuarios: true
+  aprovacaoAutomaticaUsuarios: true,
+  usuariosAprovacaoAutomatica: USUARIOS_APROVACAO_AUTOMATICA_PADRAO
 };
 
 export async function buscarRegrasPadrao() {

@@ -20,8 +20,14 @@ function canonicalizarUserLeitor(user = "") {
     : userLimpo;
 }
 
-function userTemAprovacaoAutomatica(user = "") {
-  return USERS_APROVACAO_AUTOMATICA.has(normalizarUserLeitor(user));
+function userTemAprovacaoAutomatica(user = "", regras = null) {
+  const usuariosConfigurados = Array.isArray(regras?.usuariosAprovacaoAutomatica)
+    ? regras.usuariosAprovacaoAutomatica
+    : [...USERS_APROVACAO_AUTOMATICA];
+
+  return usuariosConfigurados.some(
+    (usuario) => normalizarUserLeitor(usuario) === normalizarUserLeitor(user)
+  );
 }
 
 function calcularTempoEstimado(palavras = 0, palavrasPorMinuto = 200) {
@@ -371,7 +377,7 @@ async function verificarCapituloReal({
 
   if (
     regras?.aprovacaoAutomaticaUsuarios !== false &&
-    userTemAprovacaoAutomatica(userLeitor)
+    userTemAprovacaoAutomatica(userLeitor, regras)
   ) {
     return gerarResultadoAprovacaoAutomaticaUsuario({ capitulo, regras });
   }
