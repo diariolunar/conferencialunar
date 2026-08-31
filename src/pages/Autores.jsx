@@ -13,6 +13,35 @@ import FeedbackModal from "../components/FeedbackModal.jsx";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
 
+function AvatarAutor({ autor }) {
+  const [falhou, setFalhou] = useState(false);
+  const nome = autor.nome || autor.user || "Autor";
+  const avatar =
+    autor.avatar ||
+    (autor.user
+      ? `https://img.wattpad.com/useravatar/${encodeURIComponent(
+          autor.user
+        )}.128.333425.jpg`
+      : "");
+
+  if (!avatar || falhou) {
+    return (
+      <span className="author-profile-fallback" aria-hidden="true">
+        {nome.slice(0, 1).toUpperCase()}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      className="author-profile-avatar"
+      src={avatar}
+      alt={`Foto de perfil de ${nome}`}
+      onError={() => setFalhou(true)}
+    />
+  );
+}
+
 export default function Autores() {
   const dialog = useDialog();
   const [autores, setAutores] = useState([]);
@@ -282,17 +311,7 @@ export default function Autores() {
               <div className="dashboard-list-item" key={autor.id}>
                 <Link className="author-card-main" to={`/autores/${autor.id}`}>
                   <div className="author-profile-heading">
-                    {autor.avatar ? (
-                      <img
-                        className="author-profile-avatar"
-                        src={autor.avatar}
-                        alt={`Foto de perfil de ${autor.nome || autor.user}`}
-                      />
-                    ) : (
-                      <span className="author-profile-fallback" aria-hidden="true">
-                        {(autor.nome || autor.user || "?").slice(0, 1).toUpperCase()}
-                      </span>
-                    )}
+                    <AvatarAutor autor={autor} />
                     <strong>{autor.nome || autor.user}</strong>
                   </div>
                   <span>

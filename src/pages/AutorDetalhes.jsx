@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { buscarAutorPorId } from "../services/autoresService.js";
+import {
+  buscarAutorPorId,
+  sincronizarAutorWattpad
+} from "../services/autoresService.js";
 import { listarObras } from "../services/obrasService.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 
@@ -11,6 +14,34 @@ function primeiraLetra(valor = "?") {
 
 function formatarNumero(valor) {
   return new Intl.NumberFormat("pt-BR").format(Number(valor || 0));
+}
+
+function AvatarAutor({ autor, nome }) {
+  const [falhou, setFalhou] = useState(false);
+  const avatar =
+    autor.avatar ||
+    (autor.user
+      ? `https://img.wattpad.com/useravatar/${encodeURIComponent(
+          autor.user
+        )}.128.333425.jpg`
+      : "");
+
+  if (!avatar || falhou) {
+    return (
+      <div className="author-detail-avatar author-detail-avatar-fallback" aria-hidden="true">
+        {primeiraLetra(nome)}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      className="author-detail-avatar"
+      src={avatar}
+      alt={`Foto de perfil de ${nome}`}
+      onError={() => setFalhou(true)}
+    />
+  );
 }
 
 export default function AutorDetalhes() {
@@ -28,10 +59,25 @@ export default function AutorDetalhes() {
       setMensagem("");
 
       try {
-        const [autorEncontrado, obrasEncontradas] = await Promise.all([
+        const [autorInicial, obrasEncontradas] = await Promise.all([
           buscarAutorPorId(autorId),
           listarObras()
         ]);
+
+        if (!ativo) return;
+        let autorEncontrado = autorInicial;
+
+        if (
+          autorEncontrado?.user &&
+          (!autorEncontrado.avatar || !autorEncontrado.perfilAtualizadoEm)
+        ) {
+          try {
+            const perfilAtualizado = await sincronizarAutorWattpad(autorEncontrado);
+            autorEncontrado = { ...autorEncontrado, ...perfilAtualizado };
+          } catch (erroPerfil) {
+            console.warn("Perfil do autor não pôde ser sincronizado:", erroPerfil);
+          }
+        }
 
         if (!ativo) return;
         setAutor(autorEncontrado);
@@ -96,17 +142,7 @@ export default function AutorDetalhes() {
 
       <div className="author-detail-hero card">
         <div className="author-detail-avatar-wrap">
-          {autor.avatar ? (
-            <img
-              className="author-detail-avatar"
-              src={autor.avatar}
-              alt={`Foto de perfil de ${nome}`}
-            />
-          ) : (
-            <div className="author-detail-avatar author-detail-avatar-fallback" aria-hidden="true">
-              {primeiraLetra(nome)}
-            </div>
-          )}
+          <AvatarAutor autor={autor} nome={nome} />
         </div>
 
         <div className="author-detail-info">
@@ -134,16 +170,17 @@ export default function AutorDetalhes() {
             <div><strong>{obrasVinculadas.length}</strong><span>obras cadastradas</span></div>
           </div>
 
-          {autor.linkPerfil && (
-            <a
-              className="button-primary author-wattpad-button"
-              href={autor.linkPerfil}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Abrir perfil no Wattpad ↗
-            </a>
-          )}
+          <a
+            className="button-primary author-wattpad-button"
+            href={
+              autor.linkPerfil ||
+              `https://www.wattpad.com/user/${encodeURIComponent(autor.user || "")}`
+            }
+            target="_blank"
+            rel="noreferrer"
+          >
+            Abrir perfil no Wattpad ↗
+          </a>
         </div>
       </div>
 
