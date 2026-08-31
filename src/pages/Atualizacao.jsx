@@ -13,8 +13,7 @@ import {
 } from "../services/capitulosService.js";
 import {
   atualizarCapitulosDaObraEmLote,
-  diagnosticarObras,
-  formatarResumoAtualizacao
+  diagnosticarObras
 } from "../services/atualizacaoCapitulosService.js";
 import { decidirCapituloSemPalavras } from "../utils/decidirCapituloSemPalavras.js";
 import { compararObraComWattpad } from "../utils/compararObraWattpad.js";
@@ -65,6 +64,7 @@ export default function Atualizacao() {
   const [operacao, setOperacao] = useState("");
   const [cancelarOperacao, setCancelarOperacao] = useState(null);
   const [relatorio, setRelatorio] = useState([]);
+  const [falhasDetalhadas, setFalhasDetalhadas] = useState([]);
 
   const carregando = Boolean(operacao);
 
@@ -86,6 +86,7 @@ export default function Atualizacao() {
 
     setOperacao(nome);
     setMensagem(mensagemInicial);
+    setFalhasDetalhadas([]);
     setCancelarOperacao(() => () => {
       cancelada = true;
       setMensagem("Cancelando após concluir a obra atual...");
@@ -103,6 +104,18 @@ export default function Atualizacao() {
     return decidirCapituloSemPalavras({ dialog, ...contexto });
   }
 
+  function registrarFalha(falha = {}) {
+    setFalhasDetalhadas((atual) => [
+      ...atual,
+      {
+        obra: falha.obra || "Obra não identificada",
+        capitulo: falha.capitulo || "",
+        etapa: falha.etapa || "Atualização",
+        mensagem: falha.mensagem || "Erro não informado."
+      }
+    ]);
+  }
+
   async function executarDiagnostico() {
     const confirmar = await dialog.confirm({
       title: "Diagnosticar obras",
@@ -114,6 +127,7 @@ export default function Atualizacao() {
 
     setOperacao("diagnostico");
     setMensagem("Analisando obras e capítulos cadastrados...");
+    setFalhasDetalhadas([]);
     try {
       const resultado = await diagnosticarObras(obras);
       const pendentes = resultado.filter((item) => item.precisaAtencao);
@@ -125,6 +139,7 @@ export default function Atualizacao() {
       );
     } catch (erro) {
       console.error(erro);
+      registrarFalha({ etapa: "Diagnóstico", mensagem: erro.message });
       setMensagem("Erro ao gerar diagnóstico das obras.");
     } finally {
       finalizarOperacao();
@@ -168,6 +183,11 @@ export default function Atualizacao() {
         } catch (erro) {
           console.error(erro);
           falhas += 1;
+          registrarFalha({
+            obra: obra.titulo,
+            etapa: "Dados da obra",
+            mensagem: erro.message
+          });
         }
       }
 
@@ -177,6 +197,7 @@ export default function Atualizacao() {
       );
     } catch (erro) {
       console.error(erro);
+      registrarFalha({ etapa: "Dados das obras", mensagem: erro.message });
       setMensagem("Erro ao atualizar os dados das obras.");
     } finally {
       finalizarOperacao();
@@ -231,6 +252,14 @@ export default function Atualizacao() {
         capitulosAtualizados += resultado.atualizados;
         ignorados += resultado.ignorados;
         falhas += resultado.falhas;
+        (resultado.erros || []).forEach((erro) => {
+          registrarFalha({
+            obra: obra.titulo,
+            capitulo: erro.titulo || erro.capituloId,
+            etapa: "Dados do capítulo",
+            mensagem: erro.mensagem
+          });
+        });
       }
 
       await carregarObras();
@@ -239,6 +268,7 @@ export default function Atualizacao() {
       );
     } catch (erro) {
       console.error(erro);
+      registrarFalha({ etapa: "Dados dos capítulos", mensagem: erro.message });
       setMensagem("Erro ao atualizar os dados dos capítulos.");
     } finally {
       finalizarOperacao();
@@ -305,9 +335,22 @@ export default function Atualizacao() {
           novosEncontrados += novos.length;
           capitulosProcessados += resultado.atualizados;
           falhas += resultado.falhas;
+          (resultado.erros || []).forEach((erro) => {
+            registrarFalha({
+              obra: obra.titulo,
+              capitulo: erro.titulo || erro.capituloId,
+              etapa: "Novo capítulo",
+              mensagem: erro.mensagem
+            });
+          });
         } catch (erro) {
           console.error(erro);
           falhas += 1;
+          registrarFalha({
+            obra: obra.titulo,
+            etapa: "Busca de novos capítulos",
+            mensagem: erro.message
+          });
         }
       }
 
@@ -317,6 +360,7 @@ export default function Atualizacao() {
       );
     } catch (erro) {
       console.error(erro);
+      registrarFalha({ etapa: "Busca de novos capítulos", mensagem: erro.message });
       setMensagem("Erro ao buscar novos capítulos.");
     } finally {
       finalizarOperacao();
@@ -380,6 +424,38 @@ export default function Atualizacao() {
           </div>
         </div>
       </div>
+
+      {falhasDetalhadas.length > 0 && (
+        <div className="card">
+          <div className="page-title-row">
+            <div>
+              <h3>Falhas encontradas</h3>
+              <p>
+                {falhasDetalhadas.length} falha(s) registrada(s) na última operação.
+              </p>
+            </div>
+          </div>
+
+          <div className="works-report">
+            {falhasDetalhadas.map((falha, indice) => (
+              <div
+                className="works-report-item works-report-warning"
+                key={`${falha.obra}-${falha.capitulo}-${indice}`}
+              >
+                <div>
+                  <strong>{falha.obra}</strong>
+                  <span>
+                    {falha.capitulo
+                      ? `${falha.etapa} • ${falha.capitulo}`
+                      : falha.etapa}
+                  </span>
+                  <span>{falha.mensagem}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {relatorio.length > 0 && (
         <div className="card">
