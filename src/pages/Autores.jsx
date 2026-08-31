@@ -280,20 +280,23 @@ export default function Autores() {
           <div className="dashboard-list">
             {autoresFiltrados.map((autor) => (
               <div className="dashboard-list-item" key={autor.id}>
-                <div>
+                <Link className="author-card-main" to={`/autores/${autor.id}`}>
                   <div className="author-profile-heading">
                     {autor.avatar ? (
                       <img
                         className="author-profile-avatar"
                         src={autor.avatar}
-                        alt=""
+                        alt={`Foto de perfil de ${autor.nome || autor.user}`}
                       />
-                    ) : null}
+                    ) : (
+                      <span className="author-profile-fallback" aria-hidden="true">
+                        {(autor.nome || autor.user || "?").slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
                     <strong>{autor.nome || autor.user}</strong>
                   </div>
                   <span>
                     @{autor.user}
-                    {autor.linkPerfil ? ` • ${autor.linkPerfil}` : ""}
                   </span>
                   {autor.descricaoPerfil && (
                     <span className="author-profile-description">
@@ -307,19 +310,8 @@ export default function Autores() {
                     {(obrasPorAutor.get(autor.id) || []).length} obra(s) vinculada(s)
                     {autor.verificado ? " • perfil verificado" : ""}
                   </span>
-                  {(obrasPorAutor.get(autor.id) || []).length > 0 && (
-                    <details className="author-linked-works">
-                      <summary>Ver obras vinculadas</summary>
-                      <ul>
-                        {obrasPorAutor.get(autor.id).map((obra) => (
-                          <li key={obra.id}>
-                            <Link to={`/obras/${obra.id}`}>{obra.titulo}</Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                </div>
+                  <span className="author-card-link-hint">Ver perfil e obras vinculadas →</span>
+                </Link>
 
                 <div className="actions-row">
                   {autor.linkPerfil && (

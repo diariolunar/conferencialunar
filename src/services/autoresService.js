@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
@@ -16,6 +17,18 @@ import { normalizarTexto } from "../utils/normalizarTexto.js";
 import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
 
 const AUTORES_COLLECTION = "autores";
+
+export async function buscarAutorPorId(autorId = "") {
+  if (!autorId) return null;
+
+  const snapshot = await getDoc(doc(db, AUTORES_COLLECTION, autorId));
+  if (!snapshot.exists()) return null;
+
+  return {
+    id: snapshot.id,
+    ...snapshot.data()
+  };
+}
 
 export async function listarAutores() {
   const q = query(collection(db, AUTORES_COLLECTION), orderBy("nome", "asc"));
