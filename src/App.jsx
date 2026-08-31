@@ -7,6 +7,7 @@ import Layout from "./components/Layout.jsx";
 const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
 const Autores = lazy(() => import("./pages/Autores.jsx"));
 const Obras = lazy(() => import("./pages/Obras.jsx"));
+const Atualizacao = lazy(() => import("./pages/Atualizacao.jsx"));
 const ObraDetalhes = lazy(() => import("./pages/ObraDetalhes.jsx"));
 const Subs = lazy(() => import("./pages/Subs.jsx"));
 const SubDetalhes = lazy(() => import("./pages/SubDetalhes.jsx"));
@@ -39,6 +40,7 @@ export default function App() {
               <Route path="/historico" element={<Historico />} />
               <Route path="/autores" element={<Autores />} />
               <Route path="/obras" element={<Obras />} />
+              <Route path="/atualizacao" element={<Atualizacao />} />
               <Route path="/obras/:obraId" element={<ObraDetalhes />} />
               <Route path="/subs" element={<Subs />} />
               <Route path="/subs/:subId" element={<SubDetalhes />} />

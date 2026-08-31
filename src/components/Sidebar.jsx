@@ -6,6 +6,7 @@ const links = [
   { to: "/historico", label: "Histórico" },
   { to: "/autores", label: "Autores" },
   { to: "/obras", label: "Obras" },
+  { to: "/atualizacao", label: "Atualização" },
   { to: "/subs", label: "Subs" },
   { to: "/regras", label: "Regras" },
   { to: "/configuracoes", label: "Configurações" },
