@@ -82,9 +82,11 @@ export default function Obras() {
     try {
       const lista = await listarObras();
       setObras(lista);
+      return lista;
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao carregar obras.");
+      return [];
     }
   }
 
@@ -364,8 +366,14 @@ export default function Obras() {
       const idsNovos = new Set(
         novos.map((capitulo) => String(capitulo.wattpadId || "")).filter(Boolean)
       );
+      const titulosNovos = new Set(
+        novos
+          .map((capitulo) => normalizarTexto(capitulo.titulo || ""))
+          .filter(Boolean)
+      );
       const novosCadastrados = capitulosDepoisDoCadastro.filter((capitulo) =>
-        idsNovos.has(String(capitulo.wattpadId || ""))
+        idsNovos.has(String(capitulo.wattpadId || "")) ||
+        titulosNovos.has(normalizarTexto(capitulo.titulo || ""))
       );
 
       setMensagem(
@@ -447,7 +455,7 @@ export default function Obras() {
     const confirmar = await dialog.confirm({
       title: "Atualizar todas",
       message:
-        "Deseja atualizar todos os capítulos de todas as obras? O processo pode demorar. Capítulos ignorados ou sem link/ID serão pulados.",
+        "Deseja buscar novos capítulos no Wattpad e atualizar todos os capítulos cadastrados de todas as obras? O processo pode demorar. Obras sem link/ID e capítulos sem link/ID serão pulados.",
       confirmLabel: "Atualizar todas",
       variant: "default"
     });
@@ -475,7 +483,12 @@ export default function Obras() {
             return !capitulo.atualizacaoIgnorada && temLinkOuId;
           })
         }))
-        .filter((item) => item.capitulosParaAtualizar.length > 0);
+        .filter(
+          (item) =>
+            item.capitulosParaAtualizar.length > 0 ||
+            item.obra.link ||
+            item.obra.wattpadId
+        );
 
       if (obrasParaAtualizar.length === 0) {
         const pendentes = relatorio.filter((item) => item.precisaAtencao);
@@ -492,19 +505,99 @@ export default function Obras() {
       let capitulosAtualizados = 0;
       let capitulosIgnorados = 0;
       let falhas = 0;
+      let capitulosNovos = 0;
+      let obrasComCapitulosNovos = 0;
 
       for (let indice = 0; indice < obrasParaAtualizar.length; indice += 1) {
         if (cancelado) break;
 
         const item = obrasParaAtualizar[indice];
+        let obraProcessada = item.obra;
+        let capitulosDaFila = item.capitulosParaAtualizar;
 
         setMensagem(
-          `Atualizando obra ${indice + 1}/${obrasParaAtualizar.length}: ${item.obra.titulo}`
+          `Buscando novos capítulos ${indice + 1}/${obrasParaAtualizar.length}: ${item.obra.titulo}`
         );
 
+        try {
+          const linkObra =
+            item.obra.link ||
+            (item.obra.wattpadId
+              ? `https://www.wattpad.com/story/${item.obra.wattpadId}`
+              : "");
+
+          if (!linkObra) {
+            throw new Error("Obra sem link ou ID do Wattpad.");
+          }
+
+          const dadosWattpad = await importarObraDoWattpad(linkObra);
+          const comparacao = compararObraComWattpad({
+            obraLocal: item.obra,
+            capitulosLocais: item.capitulos,
+            dadosWattpad
+          });
+          const novos = comparacao.capitulosNovos || [];
+
+          obraProcessada = {
+            ...item.obra,
+            ...(dadosWattpad.obra || {})
+          };
+
+          if (comparacao.camposObraAlterados?.length) {
+            await atualizarObra(item.obra.id, {
+              titulo: dadosWattpad.obra?.titulo || item.obra.titulo,
+              autor: dadosWattpad.obra?.autor || item.obra.autor || "",
+              userAutor:
+                dadosWattpad.obra?.userAutor || item.obra.userAutor || "",
+              descricao:
+                dadosWattpad.obra?.descricao || item.obra.descricao || "",
+              capa: dadosWattpad.obra?.capa || item.obra.capa || "",
+              link: dadosWattpad.obra?.link || item.obra.link || linkObra,
+              wattpadId:
+                dadosWattpad.obra?.wattpadId || item.obra.wattpadId || ""
+            });
+          }
+
+          if (novos.length > 0) {
+            await salvarCapitulosDaObra(item.obra.id, novos);
+            const capitulosDepoisDoCadastro = await listarCapitulosDaObra(
+              item.obra.id
+            );
+            const idsNovos = new Set(
+              novos
+                .map((capitulo) => String(capitulo.wattpadId || ""))
+                .filter(Boolean)
+            );
+            const titulosNovos = new Set(
+              novos
+                .map((capitulo) => normalizarTexto(capitulo.titulo || ""))
+                .filter(Boolean)
+            );
+            const novosCadastrados = capitulosDepoisDoCadastro.filter(
+              (capitulo) =>
+                idsNovos.has(String(capitulo.wattpadId || "")) ||
+                titulosNovos.has(normalizarTexto(capitulo.titulo || ""))
+            );
+
+            capitulosDaFila = [...capitulosDaFila, ...novosCadastrados];
+            capitulosNovos += novos.length;
+            obrasComCapitulosNovos += 1;
+          }
+        } catch (erroBusca) {
+          console.error(erroBusca);
+          falhas += 1;
+          setMensagem(
+            `Não foi possível buscar novidades de “${item.obra.titulo}”. Atualizando os capítulos já cadastrados...`
+          );
+        }
+
+        if (capitulosDaFila.length === 0) {
+          continue;
+        }
+
         const resultado = await atualizarCapitulosDaObraEmLote({
-          obra: item.obra,
-          capitulos: item.capitulosParaAtualizar,
+          obra: obraProcessada,
+          capitulos: capitulosDaFila,
           onProgress: (progresso) => {
             if (progresso.etapa === "finalizado") return;
 
@@ -522,15 +615,17 @@ export default function Obras() {
         falhas += resultado.falhas;
       }
 
-      await carregarObras();
-      const relatorioFinal = await diagnosticarObras(obras);
+      const obrasAtualizadasLista = await carregarObras();
+      const relatorioFinal = await diagnosticarObras(
+        obrasAtualizadasLista.length ? obrasAtualizadasLista : obras
+      );
       const obrasAindaPendentes = relatorioFinal.filter(
         (item) => item.precisaAtencao
       );
       setRelatorioObras(obrasAindaPendentes);
 
       setMensagem(
-        `${cancelado ? "Atualização cancelada." : "Atualização concluída."} ${obrasAtualizadas} obra(s) atualizada(s), ${capitulosAtualizados} capítulo(s) processado(s), ${capitulosIgnorados} ignorado(s), ${falhas} falha(s). ${obrasAindaPendentes.length} obra(s) ainda precisam de atenção.`
+        `${cancelado ? "Atualização cancelada." : "Atualização concluída."} ${obrasAtualizadas} obra(s) atualizada(s), ${obrasComCapitulosNovos} com capítulos novos, ${capitulosNovos} capítulo(s) novo(s) cadastrado(s), ${capitulosAtualizados} capítulo(s) processado(s), ${capitulosIgnorados} ignorado(s), ${falhas} falha(s). ${obrasAindaPendentes.length} obra(s) ainda precisam de atenção.`
       );
     } catch (erro) {
       console.error(erro);
