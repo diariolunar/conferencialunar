@@ -222,7 +222,7 @@
   display: grid;
   grid-template-columns: 148px minmax(0, 1fr);
   gap: 28px;
-  align-items: center;
+  align-items: start;
   padding: 30px;
   background:
     radial-gradient(circle at 8% 0%, rgba(255, 200, 87, 0.13), transparent 42%),
