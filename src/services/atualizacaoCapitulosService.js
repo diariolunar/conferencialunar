@@ -278,5 +278,19 @@ export function formatarResumoAtualizacao(resultado) {
     ? `"${resultado.obraTitulo}" cancelada:`
     : `"${resultado.obraTitulo}":`;
 
-  return `${prefixo} ${resultado.atualizados} capítulo(s) atualizado(s), ${resultado.ignorados || 0} ignorado(s), ${resultado.falhas} falha(s), ${resultado.semLinkOuId} sem link ou ID.`;
+  const resumo = `${prefixo} ${resultado.atualizados} capítulo(s) atualizado(s), ${resultado.ignorados || 0} ignorado(s), ${resultado.falhas} falha(s), ${resultado.semLinkOuId} sem link ou ID.`;
+  const erros = Array.isArray(resultado.erros) ? resultado.erros : [];
+
+  if (!erros.length) return resumo;
+
+  const detalhes = erros
+    .slice(0, 20)
+    .map((erro) => {
+      const titulo = erro.titulo || erro.capituloId || "Capítulo sem identificação";
+      return `${titulo}: ${erro.mensagem || "erro não informado"}`;
+    })
+    .join("; ");
+  const restante = erros.length > 20 ? ` (+${erros.length - 20} outras)` : "";
+
+  return `${resumo} Falhas: ${detalhes}${restante}`;
 }

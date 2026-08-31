@@ -396,8 +396,17 @@ export default function Obras() {
       });
 
       await carregarObras();
+      const detalhesFalhas = (resultado.erros || [])
+        .slice(0, 20)
+        .map(
+          (erro) =>
+            `${erro.titulo || erro.capituloId || "Capítulo sem identificação"}: ${
+              erro.mensagem || "erro não informado"
+            }`
+        )
+        .join("; ");
       setMensagem(
-        `“${obra.titulo}” atualizada: ${novos.length} capítulo(s) novo(s) cadastrado(s), ${resultado.atualizados} processado(s) e ${resultado.falhas} falha(s).`
+        `“${obra.titulo}” atualizada: ${novos.length} capítulo(s) novo(s) cadastrado(s), ${resultado.atualizados} processado(s) e ${resultado.falhas} falha(s).${detalhesFalhas ? ` Falhas: ${detalhesFalhas}` : ""}`
       );
     } catch (erro) {
       console.error(erro);
