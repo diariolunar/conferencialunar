@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import {
+  atualizarObra,
   buscarObraExistente,
   excluirObra,
   importarObraDoWattpad,
@@ -11,6 +12,7 @@ import {
 } from "../services/obrasService.js";
 
 import {
+  listarCapitulosDaObra,
   salvarCapitulosDaObra
 } from "../services/capitulosService.js";
 import {
@@ -23,6 +25,7 @@ import FeedbackModal from "../components/FeedbackModal.jsx";
 import { interpretarImportacoesWattpad } from "../utils/interpretarImportacaoWattpad.js";
 import { decidirCapituloSemPalavras } from "../utils/decidirCapituloSemPalavras.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
+import { compararObraComWattpad } from "../utils/compararObraWattpad.js";
 
 export default function Obras() {
   const dialog = useDialog();
@@ -301,6 +304,98 @@ export default function Obras() {
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao excluir obra.");
+    }
+  }
+
+  async function atualizarObraComNovosCapitulos(obra) {
+    const confirmar = await dialog.confirm({
+      title: "Atualizar obra",
+      message:
+        `Buscar no Wattpad por novos capítulos de “${obra.titulo}” e cadastrá-los automaticamente?`,
+      confirmLabel: "Buscar atualizações",
+      variant: "default"
+    });
+
+    if (!confirmar) return;
+
+    setAtualizandoObraId(obra.id);
+    setMensagem(`Buscando novos capítulos de “${obra.titulo}”...`);
+
+    try {
+      const linkObra =
+        obra.link ||
+        (obra.wattpadId
+          ? `https://www.wattpad.com/story/${obra.wattpadId}`
+          : "");
+
+      if (!linkObra) {
+        throw new Error("Esta obra não possui link ou ID do Wattpad cadastrado.");
+      }
+
+      const dadosWattpad = await importarObraDoWattpad(linkObra);
+      const capitulosLocais = await listarCapitulosDaObra(obra.id);
+      const comparacao = compararObraComWattpad({
+        obraLocal: obra,
+        capitulosLocais,
+        dadosWattpad
+      });
+      const novos = comparacao.capitulosNovos || [];
+
+      if (comparacao.camposObraAlterados?.length) {
+        await atualizarObra(obra.id, {
+          titulo: dadosWattpad.obra?.titulo || obra.titulo,
+          autor: dadosWattpad.obra?.autor || obra.autor || "",
+          userAutor: dadosWattpad.obra?.userAutor || obra.userAutor || "",
+          descricao: dadosWattpad.obra?.descricao || obra.descricao || "",
+          capa: dadosWattpad.obra?.capa || obra.capa || "",
+          link: dadosWattpad.obra?.link || obra.link || linkObra,
+          wattpadId: dadosWattpad.obra?.wattpadId || obra.wattpadId || ""
+        });
+      }
+
+      if (!novos.length) {
+        await carregarObras();
+        setMensagem(`“${obra.titulo}” já está atualizada. Nenhum capítulo novo encontrado.`);
+        return;
+      }
+
+      await salvarCapitulosDaObra(obra.id, novos);
+      const capitulosDepoisDoCadastro = await listarCapitulosDaObra(obra.id);
+      const idsNovos = new Set(
+        novos.map((capitulo) => String(capitulo.wattpadId || "")).filter(Boolean)
+      );
+      const novosCadastrados = capitulosDepoisDoCadastro.filter((capitulo) =>
+        idsNovos.has(String(capitulo.wattpadId || ""))
+      );
+
+      setMensagem(
+        `“${obra.titulo}”: ${novos.length} capítulo(s) novo(s) encontrado(s). Atualizando palavras, parágrafos e comentários...`
+      );
+
+      const resultado = await atualizarCapitulosDaObraEmLote({
+        obra: {
+          ...obra,
+          ...(dadosWattpad.obra || {})
+        },
+        capitulos: novosCadastrados,
+        onProgress: (progresso) => {
+          if (progresso.etapa === "finalizado") return;
+          setMensagem(
+            `Atualizando novo capítulo ${progresso.atual}/${progresso.total}: ${progresso.titulo}`
+          );
+        },
+        onZeroPalavras: tratarCapituloSemPalavras
+      });
+
+      await carregarObras();
+      setMensagem(
+        `“${obra.titulo}” atualizada: ${novos.length} capítulo(s) novo(s) cadastrado(s), ${resultado.atualizados} processado(s) e ${resultado.falhas} falha(s).`
+      );
+    } catch (erro) {
+      console.error(erro);
+      setMensagem(erro.message || "Erro ao atualizar a obra.");
+    } finally {
+      setAtualizandoObraId("");
     }
   }
 
@@ -887,6 +982,21 @@ export default function Obras() {
                 </div>
 
                 <div className="work-list-actions">
+                  <button
+                    type="button"
+                    className="button-primary"
+                    onClick={() => atualizarObraComNovosCapitulos(obra)}
+                    disabled={
+                      sincronizandoTodas ||
+                      atualizandoTodas ||
+                      Boolean(atualizandoObraId)
+                    }
+                  >
+                    {atualizandoObraId === obra.id
+                      ? "Buscando..."
+                      : "Atualizar obra"}
+                  </button>
+
                   <button
                     type="button"
                     className="button-secondary"
