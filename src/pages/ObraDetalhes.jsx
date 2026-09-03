@@ -510,6 +510,12 @@ export default function ObraDetalhes() {
   const capitulosComMaisDe4100Palavras = capitulos.filter(
     (capitulo) => Number(capitulo.palavras || 0) > 4100
   );
+  const capitulosComMenosDe500Palavras = capitulos.filter((capitulo) => {
+    const palavras = Number(capitulo.palavras || 0);
+    const tipo = normalizarTexto(capitulo.tipo || "Normal");
+
+    return palavras > 0 && palavras < 500 && tipo !== "especial";
+  });
 
   return (
     <section className="page">
@@ -578,6 +584,24 @@ export default function ObraDetalhes() {
           <span>
             {capitulosComMaisDe4100Palavras
               .map((capitulo) => limparTituloCapitulo(capitulo.titulo))
+              .join(" • ")}
+          </span>
+        )}
+      </div>
+
+      <div className="obra-long-chapters-summary obra-short-chapters-summary">
+        <strong>
+          Capítulos com menos de 500 palavras (não especiais): {capitulosComMenosDe500Palavras.length}
+        </strong>
+        {capitulosComMenosDe500Palavras.length > 0 && (
+          <span>
+            {capitulosComMenosDe500Palavras
+              .map(
+                (capitulo) =>
+                  `${limparTituloCapitulo(capitulo.titulo)} (${Number(
+                    capitulo.palavras || 0
+                  )} palavras)`
+              )
               .join(" • ")}
           </span>
         )}

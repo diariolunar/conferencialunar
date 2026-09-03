@@ -1135,6 +1135,15 @@
   line-height: 1.5;
 }
 
+.obra-short-chapters-summary {
+  border-color: rgba(255, 107, 107, 0.22);
+  background: rgba(255, 107, 107, 0.035);
+}
+
+.obra-short-chapters-summary strong {
+  color: var(--color-gold-soft);
+}
+
 .obra-collapsible-card,
 .obra-inner-collapsible {
   overflow: hidden;
