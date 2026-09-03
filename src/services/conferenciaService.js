@@ -2,14 +2,32 @@ import { buscarDetalhesCapituloWattpad } from "./capitulosDetalhesService.js";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 import { normalizarUsuario } from "../utils/normalizarUsuario.js";
 
-const USERS_APROVACAO_AUTOMATICA = new Set(["rkymae", "jasonscott37"]);
+const USERS_APROVACAO_AUTOMATICA = new Set([
+  "rkymae",
+  "jasonscott37",
+  "charliespn149"
+]);
 
 function normalizarUserLeitor(user = "") {
   return normalizarUsuario(user);
 }
 
-function userTemAprovacaoAutomatica(user = "") {
-  return USERS_APROVACAO_AUTOMATICA.has(normalizarUserLeitor(user));
+function canonicalizarUserLeitor(user = "") {
+  const userLimpo = String(user || "").replace(/^@/, "").trim();
+
+  return normalizarUserLeitor(userLimpo) === "jjgreyx"
+    ? "JJ_Greyx"
+    : userLimpo;
+}
+
+function userTemAprovacaoAutomatica(user = "", regras = null) {
+  const usuariosConfigurados = Array.isArray(regras?.usuariosAprovacaoAutomatica)
+    ? regras.usuariosAprovacaoAutomatica
+    : [...USERS_APROVACAO_AUTOMATICA];
+
+  return usuariosConfigurados.some(
+    (usuario) => normalizarUserLeitor(usuario) === normalizarUserLeitor(user)
+  );
 }
 
 function calcularTempoEstimado(palavras = 0, palavrasPorMinuto = 200) {
@@ -357,7 +375,10 @@ async function verificarCapituloReal({
     regras?.palavrasPorMinuto
   );
 
-  if (userTemAprovacaoAutomatica(userLeitor)) {
+  if (
+    regras?.aprovacaoAutomaticaUsuarios !== false &&
+    userTemAprovacaoAutomatica(userLeitor, regras)
+  ) {
     return gerarResultadoAprovacaoAutomaticaUsuario({ capitulo, regras });
   }
 
@@ -462,7 +483,7 @@ export async function verificarLeiturasPreparadas({
     const resultado = await verificarCapituloReal({
       capitulo: leitura,
       regras,
-      userLeitor
+      userLeitor: canonicalizarUserLeitor(userLeitor)
     });
 
     resultados.push(resultado);

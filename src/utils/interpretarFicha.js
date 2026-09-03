@@ -118,6 +118,14 @@ function capturarUser(linhas = [], textoOriginal = "") {
 
   if (user) return canonicalizarUsuario(user);
 
+  const userNaLinha = linhas
+    .map((linha) =>
+      linha.match(/\b(?:user|usuario|usuário)\s*[:：]?\s*@?\s*([A-Za-z0-9_.-]+)/i)
+    )
+    .find(Boolean);
+
+  if (userNaLinha?.[1]) return canonicalizarUsuario(userNaLinha[1]);
+
   const match = desestilizar(textoOriginal).match(/@([A-Za-z0-9_.-]+)/);
   return match?.[1] || "";
 }
@@ -132,7 +140,7 @@ function ehLinhaObra(linha = "") {
   const normalizada = n(linha);
 
   return (
-    /^obra\s*\d+\s*[:：\-–—]/i.test(normalizada) ||
+    /^obra(?:\s*\d+)?\s*[:：\-–—]/i.test(normalizada) ||
     /^grimorio\s*\d+\s*[:：\-–—]/i.test(normalizada) ||
     /^grimonio\s*\d+\s*[:：\-–—]/i.test(normalizada) ||
     /^mundo\s*\d+\s*[:：\-–—]/i.test(normalizada) ||
@@ -245,10 +253,23 @@ function valorIndicaMinhaObra(valor = "") {
   const normalizada = n(valor);
 
   return (
+    /^\(?minha\)?(?:\s|$)/.test(normalizada) ||
+    /(?:^|\s)\(?minha\)?$/.test(normalizada) ||
     normalizada.includes("minha obra") ||
     normalizada.includes("obra minha") ||
     normalizada.includes("propria")
   );
+}
+
+function limparMarcadorMinhaObra(valor = "") {
+  return limparValor(valor)
+    .replace(/^\(?minha\)?\s*[:\-–—]?\s*/i, "")
+    .replace(/\s*\(?minha\)?\s*$/i, "")
+    .trim();
+}
+
+function valorIndicaObraAusente(valor = "") {
+  return /^x{3}(?:\s|$|[-–—:])/i.test(limparValor(valor));
 }
 
 function valorIndicaSim(valor = "") {
@@ -289,7 +310,17 @@ function extrairBlocosObras(linhas = []) {
     }
 
     if (ehLinhaObra(linha)) {
-      const obra = removerCampoObra(linha);
+      const obraInformada = removerCampoObra(linha);
+
+      if (valorIndicaObraAusente(obraInformada)) {
+        if (blocoAtual) blocos.push(blocoAtual);
+        blocoAtual = null;
+        lendoCapitulos = false;
+        continue;
+      }
+
+      const minhaObra = valorIndicaMinhaObra(obraInformada);
+      const obra = limparMarcadorMinhaObra(obraInformada);
 
       if (obra && !linhaEhDecorativaOuFinal(obra)) {
         if (blocoAtual) blocos.push(blocoAtual);
@@ -299,8 +330,10 @@ function extrairBlocosObras(linhas = []) {
           capitulos: [],
           tudoLido: false,
           feedbackOferecido: false,
-          minhaObra: false
+          minhaObra
         };
+
+        if (minhaObra) blocoAtual.capitulos = ["MINHA_OBRA"];
 
         lendoCapitulos = false;
         continue;

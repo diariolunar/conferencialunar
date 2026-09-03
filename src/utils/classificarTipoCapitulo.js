@@ -10,13 +10,21 @@ export function classificarTipoCapitulo({
   const tituloNormalizado = normalizarTexto(titulo);
   const totalPalavras = Number(palavras || 0);
   const ehPrologo = /\bprologo\b/.test(tituloNormalizado);
+  const ehCapituloExplicito =
+    /\b(?:cap(?:itulo|itulos)?|parte|episodio(?:s)?|ep)\b/.test(
+      tituloNormalizado
+    );
   const ehCurto =
     Number.isFinite(totalPalavras) &&
     totalPalavras > 0 &&
     totalPalavras < LIMITE_PALAVRAS_CAPITULO_ESPECIAL;
 
-  if (ehPrologo || ehCurto) {
+  if (ehPrologo || (ehCurto && !ehCapituloExplicito)) {
     return "Especial";
+  }
+
+  if (ehCapituloExplicito) {
+    return "Normal";
   }
 
   if (tipoAtual) {

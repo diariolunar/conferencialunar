@@ -5,9 +5,40 @@ import { __testables } from "../api/wattpad/capitulo-detalhes.js";
 
 const {
   combinarParagrafos,
+  contarPalavras,
+  extrairContagemPalavrasPagina,
+  extrairIdObraPagina,
   extrairNomeUsuarioComentario,
-  filtrarComentariosDoUsuario
+  filtrarComentariosDoUsuario,
+  obterContagemPalavras
 } = __testables;
+
+test("conta apenas palavras e numeros, ignorando emojis e simbolos isolados", () => {
+  assert.equal(contarPalavras("Capítulo 2: 🌿 Experiência — desejável!"), 4);
+});
+
+test("ignora length, que é tamanho do conteúdo, ao contar palavras", () => {
+  assert.equal(
+    obterContagemPalavras(
+      { length: 5096 },
+      [{ palavras: 4349 }]
+    ),
+    4349
+  );
+});
+
+test("extrai wordCount da página do capítulo", () => {
+  assert.equal(
+    extrairContagemPalavrasPagina(
+      '..."wordCount":3992,"text_url":"https://www.wattpad.com/apiv2/"...'
+    ),
+    3992
+  );
+});
+
+test("extrai o ID da obra a partir da página do capítulo", () => {
+  assert.equal(extrairIdObraPagina('href="/story/345463813"'), "345463813");
+});
 
 test("combinarParagrafos preserva a ordem do texto real quando a API traz ids extras", () => {
   const paragrafosHtml = [

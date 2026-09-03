@@ -13,6 +13,7 @@ import { listarObras } from "../services/obrasService.js";
 import { listarSubs } from "../services/subsService.js";
 
 import {
+  capituloCorrespondeExatamente,
   encontrarCapituloPorTexto,
   listarCapitulosDaObra,
   sugerirCapituloPorTexto
@@ -158,6 +159,104 @@ function separarCapitulosManuais(texto = "") {
     .filter(Boolean);
 }
 
+function interpretarListaLeituraLunar(texto = "") {
+  const linhas = String(texto || "")
+    .split(/\r?\n/)
+    .map((linha) => linha.trim())
+    .filter(Boolean);
+
+  if (linhas.length === 0) return { leituras: [], erro: "" };
+
+  if (linhas.length % 2 !== 0) {
+    return {
+      leituras: [],
+      erro: "A lista deve ter um user seguido dos capítulos lidos em cada bloco."
+    };
+  }
+
+  const leituras = [];
+
+  for (let index = 0; index < linhas.length; index += 2) {
+    const user = linhas[index].replace(/^@/, "").trim();
+    const capitulos = linhas[index + 1]
+      .split(/\s*(?:,|;|\||\/|&|\be\b)\s*/i)
+      .map((capitulo) => capitulo.trim().replace(/^["“”']|["“”']$/g, ""))
+      .filter(Boolean);
+
+    if (!user || capitulos.length === 0) {
+      return {
+        leituras: [],
+        erro: "Cada user precisa ter ao menos um capítulo informado logo abaixo."
+      };
+    }
+
+    leituras.push({ user, capitulos });
+  }
+
+  return { leituras, erro: "" };
+}
+
+function converterRomanoParaNumero(texto = "") {
+  const valores = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
+  const romano = String(texto || "").toUpperCase();
+  let total = 0;
+
+  for (let index = 0; index < romano.length; index += 1) {
+    const atual = valores[romano[index]] || 0;
+    const proximo = valores[romano[index + 1]] || 0;
+    total += atual < proximo ? -atual : atual;
+  }
+
+  return total || null;
+}
+
+function extrairNumeroDoNomeCapitulo(titulo = "") {
+  const textoNormalizado = normalizarTexto(titulo).toUpperCase();
+  const trecho = textoNormalizado.match(
+    /(?:CAPITULO|CAP|PARTE|EPISODIO|EP)\s*([IVXLCDM]+|\d+)/
+  );
+
+  if (!trecho?.[1]) {
+    const numeroNoInicio = textoNormalizado.match(/^0*(\d+)\b/);
+    return numeroNoInicio?.[1] ? Number(numeroNoInicio[1]) : null;
+  }
+
+  if (/^\d+$/.test(trecho[1])) return Number(trecho[1]);
+
+  return converterRomanoParaNumero(trecho[1]);
+}
+
+function extrairNumeroInformadoCapitulo(texto = "") {
+  const normalizado = normalizarTexto(texto);
+  const numero = normalizado.match(/\b0*(\d+)\b/);
+
+  return numero?.[1] ? Number(numero[1]) : null;
+}
+
+function encontrarCapituloPorNomeLeituraLunar(capitulos = [], texto = "") {
+  const tituloInformado = normalizarTexto(texto).replace(/\s+/g, " ").trim();
+  const capituloPorTitulo = capitulos.find(
+    (capitulo) =>
+      normalizarTexto(capitulo.titulo).replace(/\s+/g, " ").trim() ===
+      tituloInformado
+  );
+
+  if (capituloPorTitulo) return capituloPorTitulo;
+
+  const numeroInformado = extrairNumeroInformadoCapitulo(texto);
+
+  if (numeroInformado) {
+    return (
+      capitulos.find(
+        (capitulo) =>
+          extrairNumeroDoNomeCapitulo(capitulo.titulo) === numeroInformado
+      ) || null
+    );
+  }
+
+  return encontrarCapituloPorTexto(capitulos, texto);
+}
+
 function rotularConfiancaSugestao(pontos = 0) {
   if (pontos >= 80) return "Confiança alta";
   if (pontos >= 55) return "Confiança média";
@@ -173,7 +272,11 @@ export default function Conferencia() {
   const [userManual, setUserManual] = useState("");
   const [capitulosManuais, setCapitulosManuais] = useState("");
   const [obraJornada, setObraJornada] = useState("");
+  const [obraJornadaId, setObraJornadaId] = useState("");
   const [userJornada, setUserJornada] = useState("");
+  const [obraLunarId, setObraLunarId] = useState("");
+  const [listaLeituraLunar, setListaLeituraLunar] = useState("");
+  const [resultadoLeituraLunar, setResultadoLeituraLunar] = useState([]);
 
   const [obras, setObras] = useState([]);
   const [subs, setSubs] = useState([]);
@@ -322,13 +425,13 @@ export default function Conferencia() {
           titulo
         );
         const similaridadeGeral = similaridadeAproximada(obra.titulo, titulo);
+        const correspondenciaPorTrecho =
+          busca.length >= 4 &&
+          (tituloObra.includes(busca) || busca.includes(tituloObra));
 
         let pontos = 0;
 
-        if (
-          tituloObra &&
-          (tituloObra.includes(busca) || busca.includes(tituloObra))
-        ) {
+        if (correspondenciaPorTrecho) {
           pontos += 80;
         }
 
@@ -340,6 +443,7 @@ export default function Conferencia() {
           pontos,
           similaridadeTokens,
           similaridadeGeral,
+          correspondenciaPorTrecho,
           exata: tituloObra === busca
         };
       })
@@ -352,20 +456,6 @@ export default function Conferencia() {
     const exata = candidatos.find((candidato) => candidato.exata);
 
     if (exata) return exata.obra;
-
-    const melhor = candidatos[0];
-
-    if (!melhor) return null;
-
-    const confiavel =
-      melhor.pontos >= 75 &&
-      (melhor.similaridadeTokens >= 0.45 ||
-        melhor.similaridadeGeral >= 0.72);
-
-    if (confiavel) {
-      return melhor.obra;
-    }
-
     return null;
   }
 
@@ -487,10 +577,15 @@ export default function Conferencia() {
       obraEncontrada,
       capitulosDaObra,
       leituras: bloco.capitulos.map((capituloInformado) => {
-        const capituloEncontrado = encontrarCapituloPorTexto(
+        const capituloEncontradoBruto = encontrarCapituloPorTexto(
           capitulosDaObra,
           capituloInformado
         );
+        const capituloEncontrado =
+          capituloEncontradoBruto &&
+          capituloCorrespondeExatamente(capituloEncontradoBruto, capituloInformado)
+            ? capituloEncontradoBruto
+            : null;
         const sugestaoCapitulo = capituloEncontrado
           ? null
           : sugerirCapituloPorTexto(capitulosDaObra, capituloInformado);
@@ -677,7 +772,7 @@ export default function Conferencia() {
   async function prepararConferenciaJornada(evento) {
     evento.preventDefault();
 
-    if (!obraJornada.trim()) {
+    if (!obraJornadaId) {
       setMensagem("Informe o nome da obra da Jornada Mística.");
       return;
     }
@@ -698,7 +793,7 @@ export default function Conferencia() {
     });
 
     try {
-      const obraEncontrada = encontrarObraPorTitulo(obraJornada);
+      const obraEncontrada = obras.find((obra) => obra.id === obraJornadaId);
 
       if (!obraEncontrada) {
         const sugestao = sugerirObraPorTitulo(obraJornada);
@@ -727,7 +822,7 @@ export default function Conferencia() {
           textoFicha: capitulo.titulo,
           obra: obraEncontrada,
           capitulo,
-          obraInformada: obraJornada.trim()
+          obraInformada: obraEncontrada.titulo
         })
       );
 
@@ -782,6 +877,131 @@ export default function Conferencia() {
     }
   }
 
+  async function verificarLeituraLunar(evento) {
+    evento.preventDefault();
+
+    const { leituras: leiturasInformadas, erro } = interpretarListaLeituraLunar(
+      listaLeituraLunar
+    );
+    const obra = obras.find((item) => item.id === obraLunarId);
+
+    if (!obra) {
+      setMensagem("Selecione a obra da Leitura Lunar.");
+      return;
+    }
+
+    if (erro) {
+      setMensagem(erro);
+      return;
+    }
+
+    if (leiturasInformadas.length === 0) {
+      setMensagem("Cole pelo menos um user e seus capítulos lidos.");
+      return;
+    }
+
+    setPreparando(true);
+    setMensagem("");
+    setResultadoLeituraLunar([]);
+    setProgressoVerificacao({ etapa: "", atual: 0, total: 0, titulo: "" });
+
+    try {
+      const capitulosDaObra = await listarCapitulosDaObra(obra.id);
+      const verificacoes = leiturasInformadas.map(({ user, capitulos }) => {
+        const encontrados = capitulos.map((textoCapitulo) => {
+          const capitulo = encontrarCapituloPorNomeLeituraLunar(
+            capitulosDaObra,
+            textoCapitulo
+          );
+
+          return capitulo
+            ? montarLeitura({
+                textoFicha: textoCapitulo,
+                obra,
+                capitulo,
+                obraInformada: obra.titulo
+              })
+            : {
+                ...montarLeitura({
+                  textoFicha: textoCapitulo,
+                  obra,
+                  capitulo: null,
+                  obraInformada: obra.titulo
+                }),
+                erroVerificacao: true,
+                erroMensagem: "Capítulo não encontrado no cadastro da obra.",
+                resultado: {
+                  aprovado: false,
+                  motivos: ["Capítulo não encontrado no cadastro da obra."]
+                }
+              };
+        });
+
+        return { user, capitulos, encontrados };
+      });
+
+      const total = verificacoes.reduce(
+        (soma, item) => soma + item.encontrados.filter((leitura) => leitura.encontrado).length,
+        0
+      );
+      let concluidos = 0;
+
+      setPreparando(false);
+      setVerificando(true);
+      setProgressoVerificacao({
+        etapa: "iniciando",
+        atual: 0,
+        total,
+        titulo: "Preparando verificação..."
+      });
+
+      const resultados = [];
+
+      for (const verificacao of verificacoes) {
+        const leiturasEncontradas = verificacao.encontrados.filter(
+          (leitura) => leitura.encontrado
+        );
+        const leiturasNaoEncontradas = verificacao.encontrados.filter(
+          (leitura) => !leitura.encontrado
+        );
+        const resultadoDosCapitulos = await verificarLeiturasPreparadas({
+          leituras: leiturasEncontradas,
+          userLeitor: verificacao.user,
+          regras,
+          onProgress: (progresso) => {
+            setProgressoVerificacao({
+              ...progresso,
+              atual: concluidos + progresso.atual,
+              total,
+              titulo: `${verificacao.user}: ${progresso.titulo}`
+            });
+          }
+        });
+
+        concluidos += leiturasEncontradas.length;
+        resultados.push({
+          user: verificacao.user,
+          capitulosInformados: verificacao.capitulos,
+          resultados: [...resultadoDosCapitulos, ...leiturasNaoEncontradas]
+        });
+      }
+
+      setResultadoLeituraLunar(resultados);
+      const aprovados = resultados.filter((item) =>
+        item.resultados.every((capitulo) => capitulo.resultado?.aprovado)
+      ).length;
+      setMensagem(
+        `Leitura Lunar concluída: ${aprovados} aprovado(s) e ${resultados.length - aprovados} reprovado(s).`
+      );
+    } catch (erroVerificacao) {
+      console.error(erroVerificacao);
+      setMensagem("Erro ao verificar a Leitura Lunar.");
+    } finally {
+      setPreparando(false);
+      setVerificando(false);
+    }
+  }
+
   async function alterarObraDaLeitura(index, obraId) {
     const obra = obras.find((item) => item.id === obraId) || null;
 
@@ -789,7 +1009,12 @@ export default function Conferencia() {
 
     const capitulos = await listarCapitulosDaObra(obra.id);
     const textoBusca = plano?.leituras?.[index]?.textoFicha || "";
-    const capituloEncontrado = encontrarCapituloPorTexto(capitulos, textoBusca);
+    const capituloEncontradoBruto = encontrarCapituloPorTexto(capitulos, textoBusca);
+    const capituloEncontrado =
+      capituloEncontradoBruto &&
+      capituloCorrespondeExatamente(capituloEncontradoBruto, textoBusca)
+        ? capituloEncontradoBruto
+        : null;
     const sugestaoCapitulo = capituloEncontrado
       ? null
       : sugerirCapituloPorTexto(capitulos, textoBusca);
@@ -876,14 +1101,30 @@ export default function Conferencia() {
 
     if (!sugestao?.id) return;
 
+    const confirmado = await dialog.confirm({
+      title: "Confirmar obra sugerida",
+      message: `A ficha informou "${plano.leituras[index].obraInformada}". Seria a obra "${sugestao.titulo}"?`,
+      confirmLabel: "Sim, selecionar obra"
+    });
+
+    if (!confirmado) return;
+
     await alterarObraDaLeitura(index, sugestao.id);
     setMensagem(`Obra sugerida aplicada: ${sugestao.titulo}.`);
   }
 
-  function aplicarCapituloSugerido(index) {
+  async function aplicarCapituloSugerido(index) {
     const sugestao = plano?.leituras?.[index]?.sugestaoCapitulo;
 
     if (!sugestao?.id) return;
+
+    const confirmado = await dialog.confirm({
+      title: "Confirmar capítulo sugerido",
+      message: `A ficha informou "${plano.leituras[index].textoFicha}". Seria o capítulo "${sugestao.titulo}"?`,
+      confirmLabel: "Sim, selecionar capítulo"
+    });
+
+    if (!confirmado) return;
 
     alterarCapituloManual(index, sugestao.id);
     setMensagem(`Capítulo sugerido aplicado: ${sugestao.titulo}.`);
@@ -1233,6 +1474,13 @@ export default function Conferencia() {
           <div className="modal-tabs">
             <button
               type="button"
+              className={modoEntrada === "lunar" ? "active" : ""}
+              onClick={() => setModoEntrada("lunar")}
+            >
+              Leitura Lunar
+            </button>
+            <button
+              type="button"
               className={modoEntrada === "ficha" ? "active" : ""}
               onClick={() => setModoEntrada("ficha")}
             >
@@ -1256,7 +1504,7 @@ export default function Conferencia() {
             </button>
           </div>
 
-          {modoEntrada !== "jornada" && (
+          {modoEntrada !== "jornada" && modoEntrada !== "lunar" && (
             <label>
               Dia da leitura
               <select
@@ -1343,12 +1591,23 @@ export default function Conferencia() {
               <div className="form-row-2">
                 <label>
                   Nome da obra
-                  <input
-                    type="text"
-                    value={obraJornada}
-                    onChange={(evento) => setObraJornada(evento.target.value)}
-                    placeholder="Digite o nome da obra"
-                  />
+                  <select
+                    value={obraJornadaId}
+                    onChange={(evento) => {
+                      const obraSelecionada = obras.find(
+                        (obra) => obra.id === evento.target.value
+                      );
+                      setObraJornadaId(evento.target.value);
+                      setObraJornada(obraSelecionada?.titulo || "");
+                    }}
+                  >
+                    <option value="">Selecione uma obra</option>
+                    {obras.map((obra) => (
+                      <option key={obra.id} value={obra.id}>
+                        {obra.titulo}{obra.autor ? ` — ${obra.autor}` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </label>
 
                 <label>
@@ -1374,6 +1633,151 @@ export default function Conferencia() {
           )}
         </div>
       </details>
+
+      {modoEntrada === "lunar" && (
+        <details className="step-card" open>
+          <summary>
+            <span>Leitura Lunar</span>
+            <strong>Verificação em lista</strong>
+          </summary>
+
+          <form className="step-content form-grid manual-entry-form" onSubmit={verificarLeituraLunar}>
+            <label>
+              Obra
+              <select value={obraLunarId} onChange={(evento) => setObraLunarId(evento.target.value)}>
+                <option value="">Selecione a obra</option>
+                {obras.map((obra) => (
+                  <option key={obra.id} value={obra.id}>
+                    {obra.titulo}{obra.autor ? ` — ${obra.autor}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Lista de leituras
+              <textarea
+                rows="12"
+                value={listaLeituraLunar}
+                onChange={(evento) => setListaLeituraLunar(evento.target.value)}
+                placeholder={"Um user e os capítulos lidos logo abaixo.\n\nRKymae\n3 e 4\n\nJhony_1222\n3 e 4\n\nCharlieSpn149\n1 e 2"}
+              />
+            </label>
+
+            <div className="notice-card">
+              Use um bloco por leitor: primeira linha com o user e segunda linha
+              com os capítulos. Separe capítulos com “e”, vírgula ou ponto e vírgula.
+            </div>
+
+            <button type="submit" className="button-primary" disabled={preparando || verificando}>
+              {preparando || verificando ? "Verificando..." : "Conferir lista"}
+            </button>
+          </form>
+        </details>
+      )}
+
+      {resultadoLeituraLunar.length > 0 && (
+        <details className="step-card" open>
+          <summary>
+            <span>Resultado da Leitura Lunar</span>
+            <strong>{resultadoLeituraLunar.length} leitor(es)</strong>
+          </summary>
+
+          <div className="step-content">
+            <div className="conference-list">
+              {resultadoLeituraLunar.map((leitura) => {
+                const aprovado = leitura.resultados.every(
+                  (capitulo) => capitulo.resultado?.aprovado
+                );
+
+                return (
+                  <div
+                    className={`conference-item ${aprovado ? "result-approved" : "result-rejected"}`}
+                    key={leitura.user}
+                  >
+                    <div className="conference-item-header">
+                      <div>
+                        <span>User</span>
+                        <strong>@{leitura.user}</strong>
+                      </div>
+                      <span className={`status-pill ${aprovado ? "status-approved" : "status-rejected"}`}>
+                        {aprovado ? "Aprovado" : "Reprovado"}
+                      </span>
+                    </div>
+
+                    <div className="chapter-results-list">
+                      {leitura.resultados.map((capitulo, index) => {
+                        const comentarios = capitulo.resultado?.comentarios || [];
+                        const estatisticas = capitulo.resultado?.estatisticas || {};
+                        const tempoReal = Number(estatisticas.tempoReal || 0);
+                        const tempoEstimado = Number(estatisticas.tempoEstimado || 0);
+
+                        return (
+                          <details
+                            className="chapter-result-dropdown"
+                            key={`${capitulo.textoFicha}-${index}`}
+                          >
+                            <summary className="chapter-result-item">
+                              <strong>{capitulo.titulo || capitulo.textoFicha}</strong>
+                              <span className={capitulo.resultado?.aprovado ? "status-approved" : "status-rejected"}>
+                                {capitulo.resultado?.aprovado ? "Aprovado" : "Reprovado"}
+                              </span>
+                            </summary>
+
+                            <div className="chapter-result-details">
+                              <div className="chapter-result-metrics">
+                                <div>
+                                  <span>Comentários</span>
+                                  <strong>{estatisticas.comentarios ?? comentarios.length}</strong>
+                                </div>
+                                <div>
+                                  <span>Tempo de leitura</span>
+                                  <strong>{tempoReal > 0 ? `${tempoReal} min` : "Não calculado"}</strong>
+                                </div>
+                                <div>
+                                  <span>Tempo estimado</span>
+                                  <strong>{tempoEstimado > 0 ? `${tempoEstimado} min` : "-"}</strong>
+                                </div>
+                              </div>
+
+                              {!capitulo.resultado?.aprovado && capitulo.resultado?.motivos?.length > 0 && (
+                                <div className="chapter-result-reasons">
+                                  {capitulo.resultado.motivos.map((motivo) => (
+                                    <p key={motivo}>{motivo}</p>
+                                  ))}
+                                </div>
+                              )}
+
+                              {comentarios.length > 0 ? (
+                                <div className="chapter-comments-list">
+                                  <h4>Comentários encontrados</h4>
+                                  {comentarios.map((comentario, comentarioIndex) => (
+                                    <div className="chapter-comment-card" key={comentario.id || comentarioIndex}>
+                                      <strong>{comentario.posicao || "Comentário"}</strong>
+                                      <p>{comentario.texto}</p>
+                                      {comentario.link && (
+                                        <a href={comentario.link} target="_blank" rel="noreferrer">
+                                          Abrir comentário
+                                        </a>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="chapter-comments-empty">Nenhum comentário encontrado para este capítulo.</p>
+                              )}
+                            </div>
+                          </details>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </details>
+      )}
 
       {plano && (
         <>
@@ -1470,6 +1874,17 @@ export default function Conferencia() {
             </summary>
 
             <div className="step-content">
+              <div className="actions-row conference-top-actions">
+                <button
+                  type="button"
+                  className="button-primary"
+                  onClick={iniciarVerificacao}
+                  disabled={verificando || preparando}
+                >
+                  {verificando ? "Verificando..." : "Iniciar verificação"}
+                </button>
+              </div>
+
               <div className="conference-work-list">
                 {gruposDeLeitura.map((grupo, grupoIndex) => (
                   <div className="conference-work-card" key={grupo.chave}>
@@ -1534,7 +1949,7 @@ export default function Conferencia() {
                                   className="button-secondary"
                                   onClick={() => aplicarObraSugerida(index)}
                                 >
-                                  Usar esta obra
+                                  Confirmar esta obra
                                 </button>
                               </div>
                             )}
@@ -1559,7 +1974,7 @@ export default function Conferencia() {
                                     className="button-secondary"
                                     onClick={() => aplicarCapituloSugerido(index)}
                                   >
-                                    Usar este capítulo
+                                    Confirmar este capítulo
                                   </button>
                                 </div>
                               )}

@@ -80,7 +80,10 @@ function limparHtml(texto = "") {
 
 function contarPalavras(html = "") {
   const texto = limparHtml(html);
-  return texto ? texto.match(/\S+/g)?.length || 0 : 0;
+  // O Wattpad conta palavras, não tokens separados por espaço. Emojis,
+  // símbolos e pontuação isolados (comuns em títulos estilizados) não entram
+  // na contagem exibida pela plataforma.
+  return texto ? texto.match(/[\p{L}\p{N}]+/gu)?.length || 0 : 0;
 }
 
 function extrairParagrafosDoHtml(html = "") {
@@ -206,6 +209,48 @@ async function fetchParagrafosApi(capituloId) {
   return Array.isArray(dados?.paragraphs) ? dados.paragraphs : [];
 }
 
+async function fetchParteApi(capituloId) {
+  return fetchJsonSeguro(`https://www.wattpad.com/v4/parts/${capituloId}`, {});
+}
+
+async function fetchPaginaCapitulo(capituloId) {
+  try {
+    return await fetchTextoSeguro(`https://www.wattpad.com/${capituloId}`);
+  } catch {
+    return "";
+  }
+}
+
+function extrairContagemPalavrasPagina(html = "") {
+  const match = String(html || "").match(
+    /["']wordCount["']\s*:\s*(\d+)/i
+  );
+
+  return match?.[1] ? Number(match[1]) : 0;
+}
+
+function extrairIdObraPagina(html = "") {
+  const match = String(html || "").match(/story\/(\d+)/i);
+  return match?.[1] || "";
+}
+
+async function buscarContagemPalavrasNaObra(capituloId, htmlPagina = "") {
+  const obraId = extrairIdObraPagina(htmlPagina);
+
+  if (!obraId) return 0;
+
+  const dados = await fetchJsonSeguro(
+    `https://www.wattpad.com/api/v3/stories/${obraId}?fields=id,parts(id,wordCount)`,
+    { parts: [] }
+  );
+  const parte = Array.isArray(dados?.parts)
+    ? dados.parts.find((item) => String(item.id) === String(capituloId))
+    : null;
+
+  const palavras = Number(parte?.wordCount || 0);
+  return Number.isFinite(palavras) && palavras > 0 ? palavras : 0;
+}
+
 function montarUrlComentariosGerais(capituloId, afterResourceId = "") {
   const url = new URL(
     `https://www.wattpad.com/v5/comments/namespaces/parts/resources/${capituloId}/comments`
@@ -285,6 +330,21 @@ function combinarParagrafos(paragrafosHtml = [], paragrafosApi = []) {
       posicao: classificarPosicao(index, totalReal)
     };
   });
+}
+
+function obterContagemPalavras(parteApi = {}, paragrafos = []) {
+  const contagemOficial = Number(
+    parteApi.wordCount || parteApi.words || 0
+  );
+
+  if (Number.isFinite(contagemOficial) && contagemOficial > 0) {
+    return contagemOficial;
+  }
+
+  return paragrafos.reduce(
+    (total, paragrafo) => total + Number(paragrafo.palavras || 0),
+    0
+  );
 }
 
 function criarMapaParagrafos(paragrafos = []) {
@@ -452,9 +512,11 @@ export default async function handler(req, res) {
       });
     }
 
-    const [html, paragrafosApi, buscaComentarios] = await Promise.all([
+    const [html, paragrafosApi, parteApi, paginaCapitulo, buscaComentarios] = await Promise.all([
       fetchTextoCapitulo(id),
       fetchParagrafosApi(id),
+      fetchParteApi(id),
+      fetchPaginaCapitulo(id),
       fetchComentariosGeraisCapitulo(id)
     ]);
 
@@ -471,10 +533,13 @@ export default async function handler(req, res) {
       })
     );
 
-    const palavras = paragrafos.reduce(
-      (total, paragrafo) => total + Number(paragrafo.palavras || 0),
-      0
-    );
+    const palavrasObra = await buscarContagemPalavrasNaObra(id, paginaCapitulo);
+    const palavrasPagina = extrairContagemPalavrasPagina(paginaCapitulo);
+    // A contagem calculada a partir do texto dos parágrafos é mais confiável
+    // que o wordCount embutido na página, que em alguns capítulos vem
+    // desatualizado ou inclui tokens que o Wattpad não considera palavras.
+    const palavras =
+      palavrasObra || obterContagemPalavras(parteApi, paragrafos) || palavrasPagina;
 
     const comentariosTotaisCapitulo = comentariosGerais.length;
 
@@ -526,6 +591,10 @@ export default async function handler(req, res) {
 
 export const __testables = {
   combinarParagrafos,
+  contarPalavras,
+  extrairContagemPalavrasPagina,
+  extrairIdObraPagina,
+  obterContagemPalavras,
   contarDistribuicaoComentarios,
   extrairNomeUsuarioComentario,
   extrairParagrafoIdDoComentario,

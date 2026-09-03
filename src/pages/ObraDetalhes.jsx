@@ -18,11 +18,15 @@ import {
   atualizarCapitulosDaObraEmLote,
   formatarResumoAtualizacao
 } from "../services/atualizacaoCapitulosService.js";
-import { listarAutores } from "../services/autoresService.js";
+import {
+  listarAutores,
+  sincronizarAutorWattpad
+} from "../services/autoresService.js";
 import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 import { decidirCapituloSemPalavras } from "../utils/decidirCapituloSemPalavras.js";
 import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
+import { normalizarTexto } from "../utils/normalizarTexto.js";
 
 const TIPOS_CAPITULO = ["Normal", "Especial", "Poesia"];
 
@@ -126,7 +130,15 @@ export default function ObraDetalhes() {
       setCapitulos(capitulosEncontrados);
       setAutores(autoresEncontrados);
 
-      setAutorSelecionadoId(obraEncontrada.autorId || "");
+      const autorVinculado =
+        autoresEncontrados.find((item) => item.id === obraEncontrada.autorId) ||
+        autoresEncontrados.find(
+          (item) =>
+            normalizarTexto(item.user || "") ===
+            normalizarTexto(obraEncontrada.userAutor || "")
+        );
+
+      setAutorSelecionadoId(autorVinculado?.id || "");
       setTituloObra(obraEncontrada.titulo || "");
       setAutor(obraEncontrada.autor || "");
       setUserAutor(obraEncontrada.userAutor || "");
@@ -167,11 +179,17 @@ export default function ObraDetalhes() {
     setMensagem("");
 
     try {
+      const userCanonico = canonicalizarUsuario(userAutor);
+      const autorVinculado = await sincronizarAutorWattpad({
+        nome: autor.trim(),
+        user: userCanonico
+      });
+
       await atualizarObra(obraId, {
         titulo: tituloObra.trim(),
-        autorId: autorSelecionadoId,
+        autorId: autorVinculado?.id || autorSelecionadoId,
         autor: autor.trim(),
-        userAutor: canonicalizarUsuario(userAutor),
+        userAutor: userCanonico,
         capa: capa.trim(),
         link: linkObra.trim()
       });
@@ -489,6 +507,16 @@ export default function ObraDetalhes() {
     );
   }
 
+  const capitulosComMaisDe4100Palavras = capitulos.filter(
+    (capitulo) => Number(capitulo.palavras || 0) > 4100
+  );
+  const capitulosComMenosDe500Palavras = capitulos.filter((capitulo) => {
+    const palavras = Number(capitulo.palavras || 0);
+    const tipo = normalizarTexto(capitulo.tipo || "Normal");
+
+    return palavras > 0 && palavras < 500 && tipo !== "especial";
+  });
+
   return (
     <section className="page">
       <div className="page-title page-title-row">
@@ -550,8 +578,37 @@ export default function ObraDetalhes() {
         </div>
       </div>
 
-      <div className="card">
-        <h3>Editar dados da obra</h3>
+      <div className="obra-long-chapters-summary">
+        <strong>Capítulos com mais de 4100 palavras: {capitulosComMaisDe4100Palavras.length}</strong>
+        {capitulosComMaisDe4100Palavras.length > 0 && (
+          <span>
+            {capitulosComMaisDe4100Palavras
+              .map((capitulo) => limparTituloCapitulo(capitulo.titulo))
+              .join(" • ")}
+          </span>
+        )}
+      </div>
+
+      <div className="obra-long-chapters-summary obra-short-chapters-summary">
+        <strong>
+          Capítulos com menos de 500 palavras (não especiais): {capitulosComMenosDe500Palavras.length}
+        </strong>
+        {capitulosComMenosDe500Palavras.length > 0 && (
+          <span>
+            {capitulosComMenosDe500Palavras
+              .map(
+                (capitulo) =>
+                  `${limparTituloCapitulo(capitulo.titulo)} (${Number(
+                    capitulo.palavras || 0
+                  )} palavras)`
+              )
+              .join(" • ")}
+          </span>
+        )}
+      </div>
+
+      <details className="card obra-collapsible-card">
+        <summary>Editar dados da obra</summary>
 
         <form className="form-grid" onSubmit={handleSalvarObra}>
           <label>
@@ -632,10 +689,12 @@ export default function ObraDetalhes() {
             {salvandoObra ? "Salvando..." : "Salvar dados da obra"}
           </button>
         </form>
-      </div>
+      </details>
 
-      <div className="card">
+      <details className="card obra-collapsible-card">
         <h3>Cadastrar capítulo manualmente</h3>
+
+        <summary>Cadastrar capítulo manualmente</summary>
 
         <form className="form-grid" onSubmit={handleSalvarCapitulo}>
           <label>
@@ -704,10 +763,13 @@ export default function ObraDetalhes() {
             {salvandoCapitulo ? "Salvando..." : "Salvar capítulo"}
           </button>
         </form>
-      </div>
+      </details>
 
-      <div className="card">
+      <div className="card obra-bulk-card">
         <h3>Cadastrar vários capítulos</h3>
+
+        <details className="obra-inner-collapsible">
+          <summary>Cadastrar vários capítulos</summary>
 
         <form className="form-grid" onSubmit={handleSalvarCapitulosEmLote}>
           <label>
@@ -730,6 +792,7 @@ export default function ObraDetalhes() {
             {salvandoLote ? "Salvando..." : "Salvar capítulos em lote"}
           </button>
         </form>
+        </details>
       </div>
 
       <div className="card">

@@ -1,19 +1,51 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import {
   excluirAutor,
   listarAutores,
   salvarOuAtualizarAutor
 } from "../services/autoresService.js";
+import { listarObras } from "../services/obrasService.js";
 
 import { useDialog } from "../components/DialogProvider.jsx";
 import FeedbackModal from "../components/FeedbackModal.jsx";
 import { normalizarTexto } from "../utils/normalizarTexto.js";
 import { canonicalizarUsuario } from "../utils/normalizarUsuario.js";
 
+function AvatarAutor({ autor }) {
+  const [falhou, setFalhou] = useState(false);
+  const nome = autor.nome || autor.user || "Autor";
+  const avatar =
+    autor.avatar ||
+    (autor.user
+      ? `https://img.wattpad.com/useravatar/${encodeURIComponent(
+          autor.user
+        )}.128.333425.jpg`
+      : "");
+
+  if (!avatar || falhou) {
+    return (
+      <span className="author-profile-fallback" aria-hidden="true">
+        {nome.slice(0, 1).toUpperCase()}
+      </span>
+    );
+  }
+
+  return (
+    <img
+      className="author-profile-avatar"
+      src={avatar}
+      alt={`Foto de perfil de ${nome}`}
+      onError={() => setFalhou(true)}
+    />
+  );
+}
+
 export default function Autores() {
   const dialog = useDialog();
   const [autores, setAutores] = useState([]);
+  const [obras, setObras] = useState([]);
   const [busca, setBusca] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [carregando, setCarregando] = useState(true);
@@ -46,13 +78,36 @@ export default function Autores() {
       );
   }, [autores, busca]);
 
+  const obrasPorAutor = useMemo(() => {
+    const mapa = new Map();
+
+    autores.forEach((autor) => {
+      const userNormalizado = normalizarTexto(autor.user || "");
+      mapa.set(
+        autor.id,
+        obras.filter(
+          (obra) =>
+            obra.autorId === autor.id ||
+            (userNormalizado &&
+              normalizarTexto(obra.userAutor || "") === userNormalizado)
+        )
+      );
+    });
+
+    return mapa;
+  }, [autores, obras]);
+
   async function carregarAutores() {
     setCarregando(true);
     setMensagem("");
 
     try {
-      const lista = await listarAutores();
+      const [lista, obrasEncontradas] = await Promise.all([
+        listarAutores(),
+        listarObras()
+      ]);
       setAutores(lista);
+      setObras(obrasEncontradas);
     } catch (erro) {
       console.error(erro);
       setMensagem("Erro ao carregar autores.");
@@ -254,13 +309,28 @@ export default function Autores() {
           <div className="dashboard-list">
             {autoresFiltrados.map((autor) => (
               <div className="dashboard-list-item" key={autor.id}>
-                <div>
-                  <strong>{autor.nome}</strong>
+                <Link className="author-card-main" to={`/autores/${autor.id}`}>
+                  <div className="author-profile-heading">
+                    <AvatarAutor autor={autor} />
+                    <strong>{autor.nome || autor.user}</strong>
+                  </div>
                   <span>
                     @{autor.user}
-                    {autor.linkPerfil ? ` • ${autor.linkPerfil}` : ""}
                   </span>
-                </div>
+                  {autor.descricaoPerfil && (
+                    <span className="author-profile-description">
+                      {autor.descricaoPerfil}
+                    </span>
+                  )}
+                  <span>
+                    {Number(autor.seguidores || 0)} seguidores •{" "}
+                    {Number(autor.seguindo || 0)} seguindo •{" "}
+                    {Number(autor.historiasPublicadas || 0)} história(s) •{" "}
+                    {(obrasPorAutor.get(autor.id) || []).length} obra(s) vinculada(s)
+                    {autor.verificado ? " • perfil verificado" : ""}
+                  </span>
+                  <span className="author-card-link-hint">Ver perfil e obras vinculadas →</span>
+                </Link>
 
                 <div className="actions-row">
                   {autor.linkPerfil && (
